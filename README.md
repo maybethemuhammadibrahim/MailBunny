@@ -1,179 +1,150 @@
-# MailMind — AI-Powered Email Assistant
+# MailMind
 
-MailMind is a semester project that uses AI (OpenAI GPT-4o) to automatically classify,
-summarise, and draft replies to your Gmail inbox. It also extracts to-do items, meeting
-events, and order/purchase data from emails, presenting everything in a clean dashboard.
+MailMind is a FastAPI + Jinja2 email assistant that connects to Gmail, uses Google Gemini for AI tasks, and stores project data in SQLite.
 
----
+## First-Time Local Setup
 
-## Prerequisites
+### 1. Install prerequisites
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Python | 3.11+ | [python.org](https://www.python.org/downloads/) |
-| Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
-| n8n | latest | `npm install -g n8n` |
-
----
-
-## 1. Google Cloud Setup (Gmail API)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a **new project** (e.g. "MailMind")
-3. Enable the **Gmail API**: APIs & Services → Library → search "Gmail API" → Enable
-4. Create **OAuth 2.0 credentials**:
-   - APIs & Services → Credentials → Create Credentials → OAuth client ID
-   - Application type: **Web application**
-   - Authorised redirect URIs: `http://localhost:8000/auth/callback`
-   - Download the JSON file — you'll need `client_id` and `client_secret`
-5. Configure the **OAuth consent screen**:
-   - User type: External (or Internal if using a Workspace account)
-   - Add scopes: `gmail.readonly`, `gmail.modify`
-   - Add your email as a test user
-
----
-
-## 2. OpenAI API Key
-
-1. Go to [platform.openai.com](https://platform.openai.com/)
-2. Sign up or log in
-3. Go to API Keys → Create new secret key
-4. Copy the key — you'll paste it into `.env`
-
----
-
-## 3. Environment Setup
+1. Install Python 3.11+
+2. Install Node.js 18+
+3. (Optional) Install n8n globally if you will run automations
 
 ```bash
-# Clone or navigate to the project folder
-cd mailmind
+npm install -g n8n
+```
 
-# ----- Backend -----
-# Create a Python virtual environment
+### 2. Gmail API setup (Google Cloud)
+
+1. Go to https://console.cloud.google.com
+2. Create a new Google Cloud project (example: MailMind)
+3. Open APIs and Services -> Library
+4. Search for Gmail API and click Enable
+5. Open APIs and Services -> OAuth consent screen
+6. Choose External and create the consent screen
+7. Fill app details:
+   - App name: MailMind
+   - User support email: your email
+   - Developer contact email: your email
+8. Save and continue through defaults
+9. In Test users, add your Gmail address
+10. Open APIs and Services -> Credentials
+11. Click Create Credentials -> OAuth client ID
+12. Choose Web application
+13. Add this Authorized redirect URI exactly:
+
+```text
+http://localhost:8000/api/auth/callback
+```
+
+14. Create credentials and copy:
+   - Client ID
+   - Client Secret
+
+### 3. Gemini API setup (Google AI Studio)
+
+1. Go to https://aistudio.google.com or https://ai.google.dev
+2. Sign in with your Google account
+3. Create an API key
+4. Copy the key value (this will be used as GEMINI_API_KEY)
+
+### 4. Create environment file
+
+Create a file named `.env` in the project root with this content and fill your real values:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+REDIRECT_URI=http://localhost:8000/api/auth/callback
+SECRET_KEY=any_random_long_string_here
+DATABASE_PATH=./mailmind.db
+```
+
+### 5. Install dependencies
+
+From project root:
+
+```bash
 python -m venv venv
-
-# Activate it
-# On Windows:
-venv\Scripts\activate
-# On Mac/Linux:
-source venv/bin/activate
-
-# Install Python dependencies
-pip install -r backend/requirements.txt
 ```
 
----
+Windows PowerShell:
 
-## 4. Configure Environment Variables
+```powershell
+venv\Scripts\Activate.ps1
+```
+
+Then install backend and frontend dependencies:
 
 ```bash
-# Copy the example env file
-cp .env.example .env
-
-# Open .env in your editor and fill in:
-#   OPENAI_API_KEY       — from step 2
-#   GOOGLE_CLIENT_ID     — from step 1
-#   GOOGLE_CLIENT_SECRET — from step 1
-#   SECRET_KEY           — any random string (run: python -c "import secrets; print(secrets.token_hex(32))")
+pip install -r backend/requirements.txt
+npm install
 ```
 
----
+### 6. Run project for the first time
 
-## 5. Running the App
+Use two terminals.
 
-### Backend (FastAPI + Jinja2)
+Terminal 1 (backend server):
 
 ```bash
 cd backend
-uvicorn main:app --reload
-# Server starts at http://localhost:8000
-# API docs at http://localhost:8000/docs
+uvicorn main:app --reload --port 8000
 ```
 
-### Tailwind CSS Compilation
-
-Since the app uses a Jinja2 monolith, you need to run the Tailwind standalone CLI to compile changes to `input.css` into `style.css`:
+Terminal 2 (Tailwind CSS watch/build):
 
 ```bash
-# From the root directory:
 npx @tailwindcss/cli -i ./backend/static/input.css -o ./backend/static/style.css --watch
 ```
 
-### n8n (Workflow Automation)
+Open app and docs:
+
+- App UI: http://localhost:8000
+- Swagger docs: http://localhost:8000/docs
+
+### 7. Connect Gmail from the app
+
+1. Open http://localhost:8000/settings
+2. Click Connect Gmail
+3. Complete Google consent flow
+4. After success, token.json is created in project root
+
+### 8. Quick connectivity checks
+
+1. Health check: http://localhost:8000/api/health
+2. Auth status: http://localhost:8000/api/auth/status
+3. Fetch recent unread emails (after auth): http://localhost:8000/api/emails/unread
+
+## How To Run After Installation Is Done
+
+Whenever you reopen the project:
+
+1. Open terminal in project root
+2. Activate virtual environment
+3. Start backend
+4. Start Tailwind watcher only if you are editing styles/templates
+
+Commands:
+
+```powershell
+# From project root
+venv\Scripts\Activate.ps1
+cd backend
+uvicorn main:app --reload --port 8000
+```
+
+In a second terminal (from project root), only when needed:
+
+```bash
+npx @tailwindcss/cli -i ./backend/static/input.css -o ./backend/static/style.css --watch
+```
+
+Optional automation runner:
 
 ```bash
 n8n start
-# Opens at http://localhost:5678
-# Go to Workflows → Import → select n8n/workflow.json
 ```
 
----
-
-## Project Structure
-
-```
-mailmind/
-├── CONTEXT.md                  ← project context (read/update every phase)
-├── README.md                   ← this file
-├── .env.example                ← env var template
-├── backend/
-│   ├── main.py                 ← FastAPI entry point + UI routing
-│   ├── config.py               ← env var loading
-│   ├── requirements.txt        ← Python dependencies
-│   ├── db/
-│   │   └── sqlite.py           ← database init + helpers
-│   ├── routes/
-│   │   ├── auth.py             ← Gmail OAuth
-│   │   ├── pages.py            ← Jinja2 UI rendering routes
-│   │   ├── emails.py           ← fetch + classify + deduplicate
-│   │   ├── pipeline.py         ← classify / summarize / draft endpoints
-│   │   ├── todos.py            ← to-do item endpoints
-│   │   ├── meetings.py         ← meeting event endpoints
-│   │   ├── orders.py           ← order/purchase tracking
-│   │   └── analytics.py        ← spam/source/security stats
-│   ├── pipeline/
-│   │   ├── classifier.py       ← email classification (GPT-4o-mini)
-│   │   ├── summarizer.py       ← email summarisation (GPT-4o-mini)
-│   │   ├── drafter.py          ← reply drafting (GPT-4o)
-│   │   ├── todo_extractor.py   ← to-do extraction (GPT-4o-mini)
-│   │   ├── meeting_extractor.py← meeting extraction (GPT-4o-mini)
-│   │   └── order_extractor.py  ← order extraction (GPT-4o-mini)
-│   ├── templates/              ← Jinja2 HTML templates
-│   │   ├── base.html
-│   │   ├── home.html
-│   │   ├── email.html
-│   │   ├── crafter.html
-│   │   ├── orders.html
-│   │   └── settings.html
-│   └── static/                 ← Static assets
-│       ├── input.css           ← Tailwind @theme tokens
-│       ├── style.css           ← Compiled CSS
-│       └── app.js              ← Vanilla JS logic
-├── n8n/
-│   └── workflow.json           ← n8n automation workflow
-```
-
----
-
-## Phase Checklist
-
-```
-Phase 1  - [x] Project runs, Jinja2 template monolith setup with Tailwind CLI
-Phase 2  - [ ] Gmail OAuth login works, unread emails fetched
-Phase 3  - [ ] Classify / summarize / draft pipeline returns correct JSON
-Phase 4  - [ ] Todos and meetings extracted and stored in SQLite
-Phase 5  - [ ] Order emails detected and structured data stored
-Phase 6  - [ ] Analytics endpoint returns correct stats
-Phase 7  - [ ] Home page renders todos, meetings, charts from live data
-Phase 8  - [ ] Email page shows inbox, clicking email shows AI draft
-Phase 9  - [ ] Crafter generates full email from tone + prompt
-Phase 10 - [ ] Orders page shows all orders with correct status badges
-Phase 11 - [ ] Settings saved to DB, Gmail connected/disconnected works
-Phase 12 - [ ] n8n workflow runs end-to-end, Gmail Draft appears in inbox
-```
-
-# Phase 1 Walkthrough — Setup, Skeleton, and README
-
-## Summary
-
-Phase 1 of MailMind is complete. The application has been migrated from a decoupled React architecture to a Jinja2 monolith powered by FastAPI, avoiding build steps and minimizing the tech stack while keeping the same UI. Tailwind CSS v4 is used via the standalone CLI. All base templates are successfully rendered.
+That is enough to run MailMind locally after initial setup.
