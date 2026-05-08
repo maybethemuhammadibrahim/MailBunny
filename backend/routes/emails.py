@@ -251,6 +251,7 @@ def _fetch_full_message(service, message_id: str) -> Optional[dict]:  # type: ig
             "body_plain": _decode_body(payload)[:3000],
             "thread_id": msg.get("threadId", ""),
             "timestamp": timestamp,
+            "is_sent": "SENT" in msg.get("labelIds", []),
         }
     except Exception as e:
         print(f"[GMAIL] Failed to fetch message {message_id}: {e}")
@@ -274,7 +275,7 @@ def get_recent_emails_from_db():
         list[dict]: up to 5 most recent emails, including cached AI fields
     """
     try:
-        return get_recent_emails(limit=5)
+        return get_recent_emails(limit=30)
     except Exception as e:
         print(f"[EMAILS] Failed to load recent emails from DB: {e}")
         return {"error": f"Failed to load recent emails: {str(e)}"}
@@ -283,7 +284,7 @@ def get_recent_emails_from_db():
 @router.post("/sync")
 def sync_recent_emails():
     """
-    Fetches the latest 5 emails from Gmail and upserts them into SQLite.
+    Fetches the latest emails from Gmail and upserts them into SQLite.
 
     Gmail query intentionally does not include 'is:unread' so both read
     and unread recent emails can appear in the UI.
@@ -300,7 +301,7 @@ def sync_recent_emails():
         }
 
     try:
-        refs = _list_messages(service, query="newer_than:1d", max_results=5)
+        refs = _list_messages(service, query="newer_than:1d", max_results=30)
         print(f"[GMAIL] Gmail returned {len(refs)} recent message refs.")
     except Exception as e:
         return {"error": f"Failed to list messages from Gmail: {str(e)}"}
@@ -310,7 +311,7 @@ def sync_recent_emails():
         if data:
             save_email(data)
 
-    synced = get_recent_emails(limit=5)
+    synced = get_recent_emails(limit=30)
     print(f"[GMAIL] Sync complete. Returning {len(synced)} emails from DB.")
     return synced
 

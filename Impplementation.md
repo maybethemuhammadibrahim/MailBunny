@@ -479,10 +479,10 @@ Here's your optimised, comprehensive prompt:
 > Phase 1  - [ DONE ] Project runs, sidebar navigation works, all pages load
 > Phase 2  - [ DONE ] Gmail OAuth login works, unread emails fetched
 > Phase 3  - [ DONE ] Classify / summarize / draft pipeline returns correct JSON
-> Phase 4  - [ ] Todos and meetings extracted and stored in SQLite
+> Phase 4  - [ DONE ] Todos and meetings extracted and stored in SQLite
 > Phase 5  - [ ] Order emails detected and structured data stored
 > Phase 6  - [ ] Analytics endpoint returns correct stats
-> Phase 7  - [ ] Home page renders todos, meetings, charts from live data
+> Phase 7  - [ DONE ] Home page renders todos, meetings, charts from live data
 > Phase 8  - [ ] Email page shows inbox, clicking email shows AI draft
 > Phase 9  - [ ] Crafter generates full email from tone + prompt
 > Phase 10 - [ ] Orders page shows all orders with correct status badges

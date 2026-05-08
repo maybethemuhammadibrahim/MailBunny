@@ -63,6 +63,7 @@ def initialize_database():
             body_plain      TEXT,
             thread_id       TEXT,
             timestamp       TEXT,
+            is_sent         INTEGER DEFAULT 0,
             classification  TEXT,
             summary         TEXT,
             draft_reply     TEXT,
@@ -71,6 +72,12 @@ def initialize_database():
             fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+
+    # Migration guard for existing databases created before is_sent existed.
+    cursor.execute("PRAGMA table_info(emails)")
+    email_columns = [row[1] for row in cursor.fetchall()]
+    if "is_sent" not in email_columns:
+        cursor.execute("ALTER TABLE emails ADD COLUMN is_sent INTEGER DEFAULT 0")
 
     # --- Processed Emails ---
     # Tracks which emails have already been through the AI pipeline
@@ -236,12 +243,20 @@ def save_email(email_dict):
     if not email_id:
         raise ValueError("save_email requires 'id' or 'email_id'")
 
-    # IGNORE means: if this email_id already exists, skip silently.
-    # This preserves any cached AI results on the existing row.
+    # Upsert core email fields while preserving cached AI columns.
+    # We intentionally do not touch classification/summary/draft here.
     cursor.execute(
-        """INSERT OR IGNORE INTO emails
-           (email_id, subject, sender, sender_email, body_plain, thread_id, timestamp)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO emails
+           (email_id, subject, sender, sender_email, body_plain, thread_id, timestamp, is_sent)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(email_id) DO UPDATE SET
+             subject=excluded.subject,
+             sender=excluded.sender,
+             sender_email=excluded.sender_email,
+             body_plain=excluded.body_plain,
+             thread_id=excluded.thread_id,
+             timestamp=excluded.timestamp,
+             is_sent=excluded.is_sent""",
         (
             email_id,
             email_dict.get("subject", ""),
@@ -250,6 +265,7 @@ def save_email(email_dict):
             email_dict.get("body_plain", ""),
             email_dict.get("thread_id", ""),
             email_dict.get("timestamp", ""),
+            int(bool(email_dict.get("is_sent", False))),
         ),
     )
 
@@ -290,6 +306,7 @@ def get_recent_emails(limit=5):
             "body_plain": row["body_plain"],
             "thread_id": row["thread_id"],
             "timestamp": row["timestamp"],
+            "is_sent": bool(row["is_sent"]) if "is_sent" in row.keys() else False,
         }
 
         # Parse cached AI results if they exist
@@ -406,3 +423,201 @@ def save_draft(email_id, draft_reply, confidence, subject):
     connection.commit()
     connection.close()
     print(f"[DB] Updated draft for {email_id}")
+
+
+# ---------------------------------------------------------------------------
+# Todo helpers
+# ---------------------------------------------------------------------------
+
+
+def save_todo(title, due_date, priority, source_email_subject):
+    """
+    Inserts a single todo item extracted from an email.
+
+    Args:
+        title (str): todo title text
+        due_date (str | None): extracted due date or None
+        priority (str): one of high/medium/low
+        source_email_subject (str): source email subject for traceability
+
+    Returns:
+        int: newly created todo row ID
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """INSERT INTO todos (title, due_date, priority, source_email_subject)
+           VALUES (?, ?, ?, ?)""",
+        (title, due_date, priority, source_email_subject),
+    )
+
+    todo_id = cursor.lastrowid
+    connection.commit()
+    connection.close()
+    return todo_id
+
+
+def get_todos(include_done=False):
+    """
+    Fetches todos ordered by priority and creation time.
+
+    Args:
+        include_done (bool): whether completed todos are included
+
+    Returns:
+        list[dict]: todo rows in API-ready format
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    where_clause = "" if include_done else "WHERE is_done = 0"
+    cursor.execute(
+        f"""SELECT * FROM todos
+            {where_clause}
+            ORDER BY
+              CASE priority
+                WHEN 'high' THEN 1
+                WHEN 'medium' THEN 2
+                WHEN 'low' THEN 3
+                ELSE 4
+              END,
+              created_at DESC"""
+    )
+
+    rows = cursor.fetchall()
+    connection.close()
+
+    return [
+        {
+            "id": row["id"],
+            "title": row["title"],
+            "due_date": row["due_date"],
+            "priority": row["priority"],
+            "source_email_subject": row["source_email_subject"],
+            "is_done": bool(row["is_done"]),
+            "created_at": row["created_at"],
+        }
+        for row in rows
+    ]
+
+
+def mark_todo_done(todo_id):
+    """
+    Marks one todo item as completed.
+
+    Args:
+        todo_id (int): todo row ID
+
+    Returns:
+        bool: True if a row was updated
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("UPDATE todos SET is_done = 1 WHERE id = ?", (todo_id,))
+
+    updated = cursor.rowcount > 0
+    connection.commit()
+    connection.close()
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# Meeting helpers
+# ---------------------------------------------------------------------------
+
+
+def save_meeting(
+    title,
+    date,
+    time,
+    location_or_link,
+    attendees,
+    source_email_subject,
+):
+    """
+    Inserts a single meeting event extracted from an email.
+
+    Args:
+        title (str): meeting title
+        date (str | None): extracted date
+        time (str | None): extracted time
+        location_or_link (str | None): location or meeting URL
+        attendees (list[str]): attendee names/emails
+        source_email_subject (str): source email subject for traceability
+
+    Returns:
+        int: newly created meeting row ID
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """INSERT INTO meetings
+           (title, date, time, location_or_link, attendees, source_email_subject)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (
+            title,
+            date,
+            time,
+            location_or_link,
+            json.dumps(attendees or []),
+            source_email_subject,
+        ),
+    )
+
+    meeting_id = cursor.lastrowid
+    connection.commit()
+    connection.close()
+    return meeting_id
+
+
+def get_meetings():
+    """
+    Fetches meetings ordered by date, then time, then creation time.
+
+    Returns:
+        list[dict]: meeting rows in API-ready format
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """SELECT * FROM meetings
+           ORDER BY
+             CASE WHEN date IS NULL OR date = '' THEN 1 ELSE 0 END,
+             date ASC,
+             CASE WHEN time IS NULL OR time = '' THEN 1 ELSE 0 END,
+             time ASC,
+             created_at DESC"""
+    )
+
+    rows = cursor.fetchall()
+    connection.close()
+
+    meetings = []
+    for row in rows:
+        attendees = []
+        if row["attendees"]:
+            try:
+                parsed = json.loads(row["attendees"])
+                if isinstance(parsed, list):
+                    attendees = [str(a) for a in parsed if str(a).strip()]
+            except (TypeError, json.JSONDecodeError):
+                attendees = []
+
+        meetings.append(
+            {
+                "id": row["id"],
+                "title": row["title"],
+                "date": row["date"],
+                "time": row["time"],
+                "location_or_link": row["location_or_link"],
+                "attendees": attendees,
+                "source_email_subject": row["source_email_subject"],
+                "created_at": row["created_at"],
+            }
+        )
+
+    return meetings

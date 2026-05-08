@@ -1,7 +1,7 @@
 # MailMind — Project Context
 
 ## Last updated
-Phase 3 — AI Pipeline: Classify, Summarize, Draft (2026-05-08)
+Phase 4 — Todo and Meeting Extraction (2026-05-08)
 
 ## What has been built
 - Project directory structure configured for a FastAPI + Jinja2 monolith
@@ -51,7 +51,7 @@ Phase 3 — AI Pipeline: Classify, Summarize, Draft (2026-05-08)
   - `POST /api/classify` — classifies a single email, saves to DB via `mark_processed()`
   - `POST /api/summarize` — summarizes an email (read-only, no DB write)
   - `POST /api/draft` — drafts a reply given pre-computed classification + summary
-  - `POST /api/process-email` — runs all three stages in sequence, returns combined result
+  - `POST /api/process-email` — runs classify + summarize + draft + todo extraction + meeting extraction
   - All endpoints use Pydantic request models for validation
 - **`backend/routes/analytics.py`** — Dashboard analytics:
   - `GET /api/analytics/summary` — returns `{ total_processed, categories, spam_blocked, requires_reply_count }` from real DB queries
@@ -73,12 +73,37 @@ Phase 3 — AI Pipeline: Classify, Summarize, Draft (2026-05-08)
 - **`backend/templates/home.html`** — Dashboard with live analytics:
   - Quick-stats bar: Emails processed, Spam blocked, Needs reply
   - Category breakdown bar chart (CSS-based, no chart library)
-  - Tasks and meetings remain as empty states (Phase 4)
+  - Tasks and meetings now load live data from `/api/todos` and `/api/meetings`
 - **`backend/config.py`** — Updated for Gemini:
   - `GEMINI_API_KEY` loaded from `.env`
   - `AI_MODEL_FAST = "gemini-2.5-flash"` — for classify + summarize
   - `AI_MODEL_DRAFT = "gemini-2.5-flash"` — for drafting (upgradeable to gemini-2.5-pro)
   - OpenAI references removed
+
+### Phase 4 additions
+- **`backend/pipeline/todo_extractor.py`** — Gemini todo extraction:
+  - `extract_todos(subject, body, sender)` implemented using `call_fast()`
+  - Output normalized to `{ todos: [{ title, due_date, priority, source_email_subject }] }`
+- **`backend/pipeline/meeting_extractor.py`** — Gemini meeting extraction:
+  - `extract_meetings(subject, body, sender)` implemented using `call_fast()`
+  - Output normalized to `{ meetings: [{ title, date, time, location_or_link, attendees, source_email_subject }] }`
+- **`backend/db/sqlite.py`** — Added todo/meeting helper functions:
+  - `save_todo()`, `get_todos()`, `mark_todo_done()`
+  - `save_meeting()`, `get_meetings()`
+- **`backend/routes/todos.py`** — Fully implemented Phase 4 todo APIs:
+  - `GET /api/todos`
+  - `PATCH /api/todos/{id}/done`
+  - `POST /api/todos/extract`
+- **`backend/routes/meetings.py`** — Fully implemented Phase 4 meeting APIs:
+  - `GET /api/meetings`
+  - `POST /api/meetings/extract`
+- **`backend/routes/pipeline.py`** — Integrated extraction into the email analysis flow:
+  - `/api/process-email` now persists todos and meetings on first-time processing for each email ID
+  - Guard added to avoid duplicate entity inserts when a processed email is re-run
+- **`backend/templates/home.html`** — Home dashboard now renders live todo/meeting cards:
+  - Loads tasks from `/api/todos`
+  - Loads meetings from `/api/meetings`
+  - Supports marking tasks complete directly from dashboard UI
 
 ## What is working
 - Backend: All pages are routable via FastAPI Jinja2 template responses
@@ -96,10 +121,14 @@ Phase 3 — AI Pipeline: Classify, Summarize, Draft (2026-05-08)
 - **Phase 3**: Email page loads inbox, runs AI pipeline on click, displays draft with confidence score
 - **Phase 3**: Home dashboard shows live analytics from processed emails
 - **Phase 3**: Developer console with AI test, DB stats, Gmail fetch, and system status
+- **Phase 4**: Todo extraction from email content is running with Gemini Flash
+- **Phase 4**: Meeting extraction from email content is running with Gemini Flash
+- **Phase 4**: `/api/todos` and `/api/meetings` return live SQLite-backed data
+- **Phase 4**: Home page now shows real tasks and meetings instead of placeholders
+- **Phase 4**: Marking task done from dashboard updates SQLite via `PATCH /api/todos/{id}/done`
 
 ## Known issues / incomplete
 - Tailwind CSS may need recompilation when new utility classes are added (`npx @tailwindcss/cli -i static/input.css -o static/style.css`)
-- No todo/meeting extraction yet (Phase 4)
 - No order extraction yet (Phase 5)
 - No full analytics charts (Phase 6) — only summary stats
 - All page content except email + home + settings is placeholder — will be populated in Phases 7-11
@@ -135,8 +164,8 @@ mailmind/
 │   │   ├── pipeline.py                  — AI endpoints: /classify, /summarize, /draft, /process-email ✅ Phase 3
 │   │   ├── analytics.py                 — Dashboard stats: /summary ✅ Phase 3 (full charts Phase 6)
 │   │   ├── dev.py                       — Developer sandbox: /status, /db-stats, /test-ai, /emails ✅ Phase 3
-│   │   ├── todos.py                     — todo CRUD placeholder (Phase 4)
-│   │   ├── meetings.py                  — meetings listing placeholder (Phase 4)
+│   │   ├── todos.py                     — todo endpoints: list, mark done, extract ✅ Phase 4
+│   │   ├── meetings.py                  — meeting endpoints: list, extract ✅ Phase 4
 │   │   └── orders.py                    — order tracking placeholder (Phase 5)
 │   ├── templates/
 │   │   ├── base.html                    — layout shell (sidebar + topbar + content block)
@@ -155,8 +184,8 @@ mailmind/
 │       ├── classifier.py                — classify_email() with few-shot prompting ✅ Phase 3
 │       ├── summarizer.py                — summarize_email() → headline + facts + actions ✅ Phase 3
 │       ├── drafter.py                   — draft_reply() with classification/summary context ✅ Phase 3
-│       ├── todo_extractor.py            — todo extraction placeholder (Phase 4)
-│       ├── meeting_extractor.py         — meeting extraction placeholder (Phase 4)
+│       ├── todo_extractor.py            — Gemini todo extraction ✅ Phase 4
+│       ├── meeting_extractor.py         — Gemini meeting extraction ✅ Phase 4
 │       └── order_extractor.py           — order extraction placeholder (Phase 5)
 ├── n8n/
 │   └── workflow.json                    — empty n8n workflow placeholder (Phase 12)
@@ -164,41 +193,32 @@ mailmind/
 
 ## Next phase instructions
 
-### Phase 4 — Todo and Meeting Extraction
+### Phase 5 — Order and Purchase Tracking
 
 **Read CONTEXT.md first**, then implement:
 
-1. **`backend/pipeline/todo_extractor.py`** — Replace placeholder with real Gemini call:
-   - `extract_todos(subject, body, sender)` — calls Gemini Flash
-   - Returns dict: `{ todos: [{ title, due_date, priority, source_email_subject }] }`
-   - Use the shared `call_fast()` from `pipeline/gemini.py`
+1. **`backend/pipeline/order_extractor.py`** — Replace placeholder with Gemini extraction:
+  - `extract_order(subject, body, sender)`
+  - Returns structured order payload:
+    `{ retailer, order_number, item_description, order_date, estimated_delivery, status, tracking_number, tracking_url, price }`
+  - Use shared `call_fast()` (or dedicated draft model only if quality is insufficient)
 
-2. **`backend/pipeline/meeting_extractor.py`** — Replace placeholder with real Gemini call:
-   - `extract_meetings(subject, body, sender)` — calls Gemini Flash
-   - Returns dict: `{ meetings: [{ title, date, time, location_or_link, attendees, source_email_subject }] }`
-   - Use the shared `call_fast()` from `pipeline/gemini.py`
+2. **`backend/db/sqlite.py`** — Add order helper functions:
+  - `save_order(...)`
+  - `get_orders()`
+  - `get_order_stats()` with totals/status buckets
 
-3. **`backend/routes/todos.py`** — Wire up todo endpoints:
-   - `GET /api/todos` — returns all incomplete todos ordered by priority
-   - `PATCH /api/todos/{id}/done` — marks a todo as complete
-   - `POST /api/todos/extract` — accepts email fields, runs `extract_todos()`, saves to DB
+3. **`backend/routes/orders.py`** — Implement real order APIs:
+  - `GET /api/orders` — list all orders (newest first)
+  - `GET /api/orders/stats` — stats card payload
+  - `POST /api/orders/extract` — extract and persist order data from email payload
 
-4. **`backend/routes/meetings.py`** — Wire up meeting endpoints:
-   - `GET /api/meetings` — returns all upcoming meetings ordered by date
-   - `POST /api/meetings/extract` — accepts email fields, runs `extract_meetings()`, saves to DB
+4. **`backend/routes/pipeline.py`** — Integrate order extraction:
+  - If classifier returns `is_order_email=True`, run `extract_order()` and save result
+  - Include extracted order payload in `/api/process-email` response
 
-5. **Update `db/sqlite.py`** — Add helper functions:
-   - `save_todo(title, due_date, priority, source_email_subject)` — inserts a todo
-   - `get_todos(include_done=False)` — fetches todos
-   - `mark_todo_done(todo_id)` — marks a todo as complete
-   - `save_meeting(...)` — inserts a meeting
-   - `get_meetings()` — fetches upcoming meetings
+5. **`backend/templates/orders.html`** — Replace placeholder with live data rendering:
+  - fetch `/api/orders` and `/api/orders/stats`
+  - display order cards, statuses, and top stats
 
-6. **Update CONTEXT.md** with what was built, what works, and Phase 5 instructions.
-
-**Important notes:**
-- Use `google-genai` (already in requirements.txt) — NOT OpenAI
-- Use the shared `call_fast()` from `pipeline/gemini.py` for all Gemini calls
-- Model: `gemini-2.5-flash` for all calls (fast, free tier, good enough)
-- Every file must start with a 3-5 line comment block and every function must have a docstring
-- Use `print()` for logging, no logging libraries
+6. **Update CONTEXT.md** with what was built, what works, and Phase 6 instructions.

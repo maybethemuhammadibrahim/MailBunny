@@ -16,14 +16,18 @@
 from db.sqlite import (
     is_processed,
     mark_processed,
+    save_meeting,
     save_draft,
     save_email,
     save_pipeline_result,
+    save_todo,
 )
 from fastapi import APIRouter
 from pipeline.classifier import classify_email
 from pipeline.drafter import draft_reply
+from pipeline.meeting_extractor import extract_meetings
 from pipeline.summarizer import summarize_email
+from pipeline.todo_extractor import extract_todos
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -157,7 +161,8 @@ def draft(req: DraftRequest):
 @router.post("/process-email")
 def process_email(req: ProcessEmailRequest):
     """
-    Runs classify, summarize, and draft in sequence for one email.
+    Runs classify, summarize, draft, todo extraction, and meeting
+    extraction in sequence for one email.
 
     Skips mark_processed if the email_id already exists in the database.
     The pipeline always executes so callers receive fresh AI results.
@@ -166,7 +171,8 @@ def process_email(req: ProcessEmailRequest):
         req (ProcessEmailRequest): validated request with all email fields
 
     Returns:
-        dict: email_id, classification, summary, draft, already_processed
+          dict: email_id, classification, summary, draft, extracted entities,
+              already_processed
     """
     print(
         f"[Route /process-email] email_id={req.email_id}, subject='{req.subject[:60]}'"
@@ -175,6 +181,36 @@ def process_email(req: ProcessEmailRequest):
     classification = classify_email(req.subject, req.sender_email, req.body_plain)
     summary = summarize_email(req.subject, req.body_plain)
     draft = draft_reply(req.subject, req.body_plain, classification, summary)
+
+    saved_todos = []
+    saved_meetings = []
+
+    # Avoid duplicate entity inserts when the same email is re-processed.
+    if not already:
+        todos_result = extract_todos(req.subject, req.body_plain, req.sender_email)
+        meetings_result = extract_meetings(
+            req.subject, req.body_plain, req.sender_email
+        )
+
+        for todo in todos_result.get("todos", []):
+            todo_id = save_todo(
+                title=todo.get("title", "").strip(),
+                due_date=todo.get("due_date"),
+                priority=todo.get("priority", "medium"),
+                source_email_subject=todo.get("source_email_subject", req.subject),
+            )
+            saved_todos.append({"id": todo_id, **todo})
+
+        for meeting in meetings_result.get("meetings", []):
+            meeting_id = save_meeting(
+                title=meeting.get("title", "").strip(),
+                date=meeting.get("date"),
+                time=meeting.get("time"),
+                location_or_link=meeting.get("location_or_link"),
+                attendees=meeting.get("attendees", []),
+                source_email_subject=meeting.get("source_email_subject", req.subject),
+            )
+            saved_meetings.append({"id": meeting_id, **meeting})
 
     # Ensure the source email row exists, then persist all AI outputs.
     save_email(
@@ -204,5 +240,7 @@ def process_email(req: ProcessEmailRequest):
         "classification": classification,
         "summary": summary,
         "draft": draft,
+        "todos": saved_todos,
+        "meetings": saved_meetings,
         "already_processed": already,
     }
