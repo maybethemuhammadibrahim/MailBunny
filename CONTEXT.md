@@ -1,7 +1,7 @@
 # MailMind — Project Context
 
 ## Last updated
-Phase 6 — Analytics and Email Stats (2026-05-09)
+Phase 8A — Smart Inbox: Folder List & Email List (2026-05-09)
 
 ## What has been built
 - Project directory structure configured for a FastAPI + Jinja2 monolith
@@ -135,6 +135,15 @@ Phase 6 — Analytics and Email Stats (2026-05-09)
   - Pydantic models: `HourlyEntry`, `OverviewResponse`, `SuspiciousSender`, `SecurityResponse`
   - Both new endpoints have safe except fallbacks returning empty payloads
 
+### Phase 8A additions
+- **`backend/templates/email.html`** — Added folder-list left pane and extended JS:
+  - New `<aside id="folder-nav">` column with four folders: Important, All Mail, Drafts, Spam
+  - `setFolder(folder)` function — highlights active folder, resets pagination, calls renderEmailList()
+  - `filteredEmails()` extended to handle all 4 folder modes (important/all/drafts/spam)
+  - `updateFolderBadges()` — live count pills on Important and All Mail buttons
+  - Legacy `setTab()` now delegates to `setFolder()` keeping inbox header tabs in sync
+  - Inbox list panel width reduced from w-80 to w-72 to fit 4-column layout
+
 ## What is working
 - Backend: All pages are routable via FastAPI Jinja2 template responses
 - Frontend: Sidebar navigation shows correct active state per route
@@ -163,10 +172,12 @@ Phase 6 — Analytics and Email Stats (2026-05-09)
 - **Phase 5**: `/api/process-email` automatically runs order extraction when classifier flags `is_order_email=True`
 - **Phase 6**: `GET /api/analytics/overview` returns total_today, spam_count, by_category, by_sender_domain, hourly_volume from SQLite
 - **Phase 6**: `GET /api/analytics/security` returns spam_rate_percent, safe_percent, suspicious_senders list
+- **Phase 8A**: Email page folder nav renders Important / All Mail / Drafts / Spam with active highlight and count badges
+- **Phase 8A**: Folder switching filters email list correctly (Drafts = sent replies, Spam = spam-classified emails)
 
 ## Known issues / incomplete
 - Tailwind CSS may need recompilation when new utility classes are added (`npx @tailwindcss/cli -i static/input.css -o static/style.css`)
-- All page content except email + home + settings is placeholder — will be populated in Phases 8-11 (Phase 7 done)
+- All page content except email + home + settings is placeholder — Phase 8B (email detail + draft panel) still pending
 - n8n workflow is empty placeholder (Phase 12)
 - `token.json` is saved to project root — it is in `.gitignore` (contains OAuth secrets)
 - orders.html page still renders placeholder content (Phase 10 will wire up the UI)

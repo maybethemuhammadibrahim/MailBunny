@@ -2,10 +2,71 @@
 block header_title %}Email{% endblock %} {% block content %}
 <div class="flex flex-row gap-gutter h-full w-full flex-1 min-h-0">
     <!-- ══════════════════════════════════════════════════════════
-       LEFT PANEL — Inbox list
+       FOLDER NAV — Folder list (Important / All Mail / Drafts / Spam)
+  ══════════════════════════════════════════════════════════ -->
+    <aside
+        id="folder-nav"
+        class="w-48 flex-shrink-0 flex flex-col bg-surface-container-lowest rounded-xl border border-surface-dim shadow-[0px_4px_20px_rgba(0,0,0,0.03)] overflow-hidden max-h-[700px]">
+
+        <!-- Nav header -->
+        <div class="px-4 py-3 border-b border-surface-dim">
+            <span class="font-label-md text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Mailboxes</span>
+        </div>
+
+        <!-- Folder buttons -->
+        <nav class="flex flex-col py-2 gap-0.5 px-2">
+            <!-- Important -->
+            <button id="folder-btn-important" onclick="setFolder('important')"
+                class="folder-btn flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors
+                       bg-primary/10 text-primary">
+                <span class="material-symbols-outlined text-[18px]" style="font-variation-settings:'FILL' 1">star</span>
+                <span class="font-label-md text-[13px] font-semibold">Important</span>
+                <span id="badge-important" class="ml-auto text-[10px] font-bold bg-primary text-on-primary rounded-full px-1.5 py-0.5 hidden"></span>
+            </button>
+
+            <!-- All Mail -->
+            <button id="folder-btn-all" onclick="setFolder('all')"
+                class="folder-btn flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors
+                       text-on-surface-variant hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[18px]">all_inbox</span>
+                <span class="font-label-md text-[13px] font-medium">All Mail</span>
+                <span id="badge-all" class="ml-auto text-[10px] font-bold bg-secondary text-on-secondary rounded-full px-1.5 py-0.5 hidden"></span>
+            </button>
+
+            <!-- Divider -->
+            <div class="my-1 mx-1 h-px bg-surface-dim"></div>
+
+            <!-- Drafts -->
+            <button id="folder-btn-drafts" onclick="setFolder('drafts')"
+                class="folder-btn flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors
+                       text-on-surface-variant hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[18px]">drafts</span>
+                <span class="font-label-md text-[13px] font-medium">Drafts</span>
+            </button>
+
+            <!-- Spam -->
+            <button id="folder-btn-spam" onclick="setFolder('spam')"
+                class="folder-btn flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors
+                       text-on-surface-variant hover:bg-surface-container-low">
+                <span class="material-symbols-outlined text-[18px]">report</span>
+                <span class="font-label-md text-[13px] font-medium">Spam</span>
+            </button>
+        </nav>
+
+        <!-- Spacer -->
+        <div class="flex-1"></div>
+
+        <!-- Storage indicator (decorative) -->
+        <div class="p-3 border-t border-surface-dim">
+            <p class="text-[10px] text-outline text-center">MailMind · AI inbox</p>
+        </div>
+    </aside>
+
+    <!-- ══════════════════════════════════════════════════════════
+       CENTER-LEFT PANEL — Inbox list
   ══════════════════════════════════════════════════════════ -->
     <section
-        class="w-80 flex-shrink-0 flex flex-col bg-surface-container-lowest rounded-xl border border-surface-dim shadow-[0px_4px_20px_rgba(0,0,0,0.03)] overflow-hidden max-h-[700px]">
+        class="w-72 flex-shrink-0 flex flex-col bg-surface-container-lowest rounded-xl border border-surface-dim shadow-[0px_4px_20px_rgba(0,0,0,0.03)] overflow-hidden max-h-[700px]">
         <!-- Tab bar -->
         <div class="flex border-b border-surface-dim px-4 pt-2 items-center">
             <button id="tab-important" onclick="setTab('important')"
@@ -238,10 +299,11 @@ block header_title %}Email{% endblock %} {% block content %}
 <script>
     // ─── State ────────────────────────────────────────────────────────────────────
     const state = {
-        emails: [], // all fetched emails
-        selected: null, // currently open email object
-        pipeline: null, // last pipeline result {classification, summary, draft}
-        activeTab: "important",
+        emails: [],          // all fetched emails
+        selected: null,      // currently open email object
+        pipeline: null,      // last pipeline result {classification, summary, draft}
+        activeTab: "important", // maps to a folder key
+        activeFolder: "important", // tracks the folder-nav active folder
     };
 
     // Pagination state
@@ -331,19 +393,53 @@ block header_title %}Email{% endblock %} {% block content %}
             .join("");
     }
 
-    // ─── Tab management ───────────────────────────────────────────────────────────
-    function setTab(tab) {
-        state.activeTab = tab;
-        emailListPage = 1; // Reset pagination when switching tabs
-        document.getElementById("tab-important").className =
-            tab === "important"
-                ? "px-4 py-3 font-label-md text-label-md text-primary border-b-2 border-primary transition-colors"
-                : "px-4 py-3 font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors";
-        document.getElementById("tab-all").className =
-            tab === "all"
-                ? "px-4 py-3 font-label-md text-label-md text-primary border-b-2 border-primary transition-colors"
-                : "px-4 py-3 font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors";
+    // ─── Folder nav management ────────────────────────────────────────────────────
+    // Maps folder keys to display labels shown in the inbox list header.
+    const FOLDER_LABELS = {
+        important: "Important",
+        all:       "All Mail",
+        drafts:    "Sent / Drafts",
+        spam:      "Spam",
+    };
+
+    function setFolder(folder) {
+        state.activeFolder = folder;
+        // Map folders onto the internal tab filter used by filteredEmails()
+        state.activeTab = folder; // we extend filteredEmails() to handle all 4
+        emailListPage = 1; // reset pagination on folder switch
+
+        // Style all folder buttons: deactivate all, activate the clicked one
+        document.querySelectorAll(".folder-btn").forEach(function(btn) {
+            btn.classList.remove("bg-primary/10", "text-primary", "font-semibold");
+            btn.classList.add("text-on-surface-variant", "hover:bg-surface-container-low");
+            // Reset icon fill
+            var icon = btn.querySelector(".material-symbols-outlined");
+            if (icon) { icon.style.fontVariationSettings = "'FILL' 0"; }
+        });
+
+        var active = document.getElementById("folder-btn-" + folder);
+        if (active) {
+            active.classList.add("bg-primary/10", "text-primary", "font-semibold");
+            active.classList.remove("text-on-surface-variant", "hover:bg-surface-container-low");
+            var icon = active.querySelector(".material-symbols-outlined");
+            if (icon) { icon.style.fontVariationSettings = "'FILL' 1"; }
+        }
+
+        // Sync the inbox-list tab buttons (Important / All) if applicable
+        var tabImportant = document.getElementById("tab-important");
+        var tabAll = document.getElementById("tab-all");
+        var activeTabCls = "px-4 py-3 font-label-md text-label-md text-primary border-b-2 border-primary transition-colors";
+        var inactiveTabCls = "px-4 py-3 font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-colors";
+        tabImportant.className = folder === "important" ? activeTabCls : inactiveTabCls;
+        tabAll.className = (folder === "all" || folder === "drafts" || folder === "spam") ? activeTabCls : inactiveTabCls;
+
         renderEmailList();
+    }
+
+    // Legacy tab click handler — keeps existing tab buttons in sync with folder nav
+    function setTab(tab) {
+        // Map the simple tab click to the appropriate folder
+        setFolder(tab === "important" ? "important" : "all");
     }
 
     function loadMoreEmails() {
@@ -352,22 +448,34 @@ block header_title %}Email{% endblock %} {% block content %}
     }
 
     function filteredEmails() {
-        if (state.activeTab === "important") {
-            return state.emails.filter((e) => {
-                if (e.is_sent) {
-                    return false;
-                }
-                const cat = e._pipeline?.classification?.category;
-                const score = e._pipeline?.classification?.priority_score || 0;
-                return (
-                    !cat ||
-                    cat === "urgent" ||
-                    cat === "action-required" ||
-                    cat === "meeting-request" ||
-                    score >= 6
-                );
+        var folder = state.activeFolder || state.activeTab;
+
+        if (folder === "important") {
+            // Important: non-sent emails with urgent/action/meeting category OR priority >= 6
+            return state.emails.filter(function(e) {
+                if (e.is_sent) { return false; }
+                var cat = e._pipeline?.classification?.category;
+                var score = e._pipeline?.classification?.priority_score || 0;
+                return !cat || cat === "urgent" || cat === "action-required" ||
+                       cat === "meeting-request" || score >= 6;
             });
         }
+
+        if (folder === "drafts") {
+            // Drafts: sent messages (replies that were sent from this app)
+            return state.emails.filter(function(e) { return !!e.is_sent; });
+        }
+
+        if (folder === "spam") {
+            // Spam: emails classified as spam or flagged is_spam by the pipeline
+            return state.emails.filter(function(e) {
+                var cat = e._pipeline?.classification?.category;
+                var isSpam = e._pipeline?.classification?.is_spam;
+                return cat === "spam" || !!isSpam;
+            });
+        }
+
+        // All Mail: every email
         return state.emails;
     }
 
@@ -523,6 +631,9 @@ block header_title %}Email{% endblock %} {% block content %}
     function renderEmailList() {
         const list = document.getElementById("inbox-list");
         const allRows = buildDisplayRows();
+
+        // Update folder badge counts
+        updateFolderBadges();
 
         const countEl = document.getElementById("inbox-count");
         countEl.textContent = allRows.filter((r) => !r.isChild).length;
@@ -882,6 +993,38 @@ block header_title %}Email{% endblock %} {% block content %}
     }
     function hide(id) {
         document.getElementById(id)?.classList.add("hidden");
+    }
+
+    // ─── Folder badge counts ──────────────────────────────────────────────────────
+    // Updates the small number pills on Important and All Mail folder buttons.
+    // Called after every render so counts stay current after sync/filter changes.
+    function updateFolderBadges() {
+        // Important count: non-sent high-priority emails
+        var importantCount = state.emails.filter(function(e) {
+            if (e.is_sent) { return false; }
+            var cat = e._pipeline?.classification?.category;
+            var score = e._pipeline?.classification?.priority_score || 0;
+            return !cat || cat === "urgent" || cat === "action-required" ||
+                   cat === "meeting-request" || score >= 6;
+        }).length;
+
+        var badgeImportant = document.getElementById("badge-important");
+        if (importantCount > 0) {
+            badgeImportant.textContent = importantCount;
+            badgeImportant.classList.remove("hidden");
+        } else {
+            badgeImportant.classList.add("hidden");
+        }
+
+        // All Mail count: total emails in DB
+        var allCount = state.emails.length;
+        var badgeAll = document.getElementById("badge-all");
+        if (allCount > 0) {
+            badgeAll.textContent = allCount;
+            badgeAll.classList.remove("hidden");
+        } else {
+            badgeAll.classList.add("hidden");
+        }
     }
 
     // ─── Boot ─────────────────────────────────────────────────────────────────────
