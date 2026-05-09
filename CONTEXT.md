@@ -1,7 +1,7 @@
 # MailMind — Project Context
 
 ## Last updated
-Phase 8A — Smart Inbox: Folder List & Email List (2026-05-09)
+Phase 8B — Email Detail & AI Draft Panel (2026-05-09)
 
 ## What has been built
 - Project directory structure configured for a FastAPI + Jinja2 monolith
@@ -144,6 +144,20 @@ Phase 8A — Smart Inbox: Folder List & Email List (2026-05-09)
   - Legacy `setTab()` now delegates to `setFolder()` keeping inbox header tabs in sync
   - Inbox list panel width reduced from w-80 to w-72 to fit 4-column layout
 
+### Phase 8B additions
+- **`backend/templates/email.html`** — Right pane AI Draft panel fully wired:
+  - Primary **"Save to Gmail Drafts"** button (teal, `bookmark_add` icon) calls `POST /api/drafts/save`
+  - Secondary row: **Copy**, **Regenerate** (with spinning icon during call), **Send** buttons
+  - Confidence badge now shows "AI Confidence: 92%" format with green/orange/grey colour tiers
+  - `saveDraftToGmail()` AJAX function with inline spinner, success/error toast, button state restore
+  - `regenerateDraft()` refactored: spinning icon, confidence badge refresh, success toast on done
+  - Toast notification system: `showToast(msg, type)` with `toast-in`/`toast-out` CSS keyframe animations, 3s auto-dismiss, colour-coded (success=green, error=red, info=primary)
+  - `btn-save-draft` added to the list of buttons enabled after pipeline completes
+- **`backend/routes/emails.py`** — Added `POST /api/drafts/save` endpoint:
+  - `SaveDraftRequest` Pydantic model (to, subject, body, thread_id)
+  - Calls Gmail `drafts.create()` API — saves to Drafts folder without sending
+  - Preserves thread association via `threadId` when supplied
+
 ## What is working
 - Backend: All pages are routable via FastAPI Jinja2 template responses
 - Frontend: Sidebar navigation shows correct active state per route
@@ -174,10 +188,14 @@ Phase 8A — Smart Inbox: Folder List & Email List (2026-05-09)
 - **Phase 6**: `GET /api/analytics/security` returns spam_rate_percent, safe_percent, suspicious_senders list
 - **Phase 8A**: Email page folder nav renders Important / All Mail / Drafts / Spam with active highlight and count badges
 - **Phase 8A**: Folder switching filters email list correctly (Drafts = sent replies, Spam = spam-classified emails)
+- **Phase 8B**: AI Draft panel shows confidence as "AI Confidence: XX%" with colour-coded badge
+- **Phase 8B**: "Save to Gmail Drafts" button saves draft via Gmail API (not sent)
+- **Phase 8B**: Toast notifications (success/error/info) with CSS keyframe animations on draft actions
+- **Phase 8B**: Regenerate button shows spinner icon and refreshes confidence badge on completion
 
 ## Known issues / incomplete
 - Tailwind CSS may need recompilation when new utility classes are added (`npx @tailwindcss/cli -i static/input.css -o static/style.css`)
-- All page content except email + home + settings is placeholder — Phase 8B (email detail + draft panel) still pending
+- All page content except email, home, settings is now complete; crafter/orders/settings pages still placeholder (Phases 9-11)
 - n8n workflow is empty placeholder (Phase 12)
 - `token.json` is saved to project root — it is in `.gitignore` (contains OAuth secrets)
 - orders.html page still renders placeholder content (Phase 10 will wire up the UI)
