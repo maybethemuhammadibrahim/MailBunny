@@ -1,0 +1,108 @@
+{% extends "base.html" %} {% block title %}Orders - MailMind{% endblock %} {%
+block header_title %}Orders{% endblock %} {% block content %}
+<div class="flex flex-col gap-gutter max-w-7xl mx-auto w-full">
+    <!-- Spending Overview Section -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+        <!-- Primary Overview Card -->
+        <div
+            class="md:col-span-2 bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.03)] border border-surface-container flex flex-col justify-between"
+        >
+            <div>
+                <h2
+                    class="font-body-md text-body-md text-on-surface-variant mb-2"
+                >
+                    Total Spending This Year
+                </h2>
+                <div class="font-h1 text-h1 text-on-surface-variant/40">—</div>
+            </div>
+            <!-- Empty chart placeholder -->
+            <div class="mt-8 flex items-end gap-2 h-24 w-full">
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[30%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[50%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[80%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[40%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[100%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[60%]"
+                ></div>
+                <div
+                    class="w-full bg-surface-container-high/40 rounded-t-sm h-[70%]"
+                ></div>
+            </div>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="flex flex-col gap-gutter">
+            <div
+                class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.03)] border border-surface-container flex-1 flex flex-col justify-center"
+            >
+                <div class="flex items-center gap-3 mb-2">
+                    <div
+                        class="p-2 rounded-lg bg-surface-container-low text-primary"
+                    >
+                        <span class="material-symbols-outlined text-[20px]"
+                            >local_shipping</span
+                        >
+                    </div>
+                    <h3
+                        class="font-body-md text-body-md text-on-surface-variant"
+                    >
+                        Active Deliveries
+                    </h3>
+                </div>
+                <div class="font-h2 text-h2 text-on-surface-variant/40">—</div>
+            </div>
+            <div
+                class="bg-surface-container-lowest rounded-xl p-card-padding shadow-[0px_4px_20px_rgba(0,0,0,0.03)] border border-surface-container flex-1 flex flex-col justify-center"
+            >
+                <div class="flex items-center gap-3 mb-2">
+                    <div
+                        class="p-2 rounded-lg bg-surface-container-low text-primary"
+                    >
+                        <span class="material-symbols-outlined text-[20px]"
+                            >receipt_long</span
+                        >
+                    </div>
+                    <h3
+                        class="font-body-md text-body-md text-on-surface-variant"
+                    >
+                        Monthly Average
+                    </h3>
+                </div>
+                <div class="font-h2 text-h2 text-on-surface-variant/40">—</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Recent Orders Section -->
+    <section class="flex flex-col gap-6 mt-4">
+        <h2 class="font-h2 text-h2 text-on-surface">Recent Orders</h2>
+        <!-- Empty State: Orders -->
+        <div
+            class="bg-surface-container-lowest rounded-xl border border-surface-container p-16 flex flex-col items-center justify-center text-center shadow-[0px_4px_20px_rgba(0,0,0,0.03)]"
+        >
+            <span
+                class="material-symbols-outlined text-[64px] text-on-surface-variant/20 mb-4"
+                >shopping_bag</span
+            >
+            <p class="font-body-lg text-body-lg text-on-surface-variant">
+                No orders found
+            </p>
+            <p class="font-body-md text-body-md text-outline mt-2 text-[13px]">
+                Order confirmation emails will be detected and tracked here
+                automatically
+            </p>
+        </div>
+    </section>
+</div>
+{% endblock %}
