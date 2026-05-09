@@ -275,3 +275,32 @@ mailmind/
    - Add hourly volume section if feasible within the existing layout
 
 3. **Update CONTEXT.md** at the end with what was built, what works, and Phase 7 instructions (Phase 7 is already done — skip its UI steps, just note it).
+### Phase 5 — Order and Purchase Tracking
+
+**Read CONTEXT.md first**, then implement:
+
+1. **`backend/pipeline/order_extractor.py`** — Replace placeholder with Gemini extraction:
+  - `extract_order(subject, body, sender)`
+  - Returns structured order payload:
+    `{ retailer, order_number, item_description, order_date, estimated_delivery, status, tracking_number, tracking_url, price }`
+  - Use shared `call_fast()` (or dedicated draft model only if quality is insufficient)
+
+2. **`backend/db/sqlite.py`** — Add order helper functions:
+  - `save_order(...)`
+  - `get_orders()`
+  - `get_order_stats()` with totals/status buckets
+
+3. **`backend/routes/orders.py`** — Implement real order APIs:
+  - `GET /api/orders` — list all orders (newest first)
+  - `GET /api/orders/stats` — stats card payload
+  - `POST /api/orders/extract` — extract and persist order data from email payload
+
+4. **`backend/routes/pipeline.py`** — Integrate order extraction:
+  - If classifier returns `is_order_email=True`, run `extract_order()` and save result
+  - Include extracted order payload in `/api/process-email` response
+
+5. **`backend/templates/orders.html`** — Replace placeholder with live data rendering:
+  - fetch `/api/orders` and `/api/orders/stats`
+  - display order cards, statuses, and top stats
+
+6. **Update CONTEXT.md** with what was built, what works, and Phase 6 instructions.

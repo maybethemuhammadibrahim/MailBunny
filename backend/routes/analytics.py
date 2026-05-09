@@ -118,7 +118,6 @@ def get_summary():
             "spam_blocked": spam,
             "requires_reply_count": needs_reply,
         }
-
     except Exception as exc:
         print(f"[Analytics] Summary failed: {exc}")
         return {
