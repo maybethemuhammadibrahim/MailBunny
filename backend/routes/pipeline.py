@@ -2,11 +2,10 @@
 # ---------------------------------------------------------------
 # FastAPI router exposing the multi-agent AI pipeline as REST
 # endpoints. The /process-email endpoint runs the full sequence:
-#   1. Sentiment Analysis (understand sender's mood)
-#   2. Classification (categorize the email)
-#   3. Summarization (extract key facts)
-#   4. Draft Reply (with settings, memory, and quality review)
-#   5. Entity Extraction (todos, meetings, orders)
+#   1. Classification + Sentiment (merged into one API call)
+#   2. Summarization (extract key facts)
+#   3. Draft Reply (with settings, memory, and quality review)
+#   4. Entity Extraction (todos, meetings, orders)
 # ---------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -18,6 +17,7 @@
 # ---------------------------------------------------------------------------
 
 from db.sqlite import (
+    get_email,
     is_processed,
     mark_processed,
     save_meeting,
@@ -207,21 +207,19 @@ def draft(req: DraftRequest):
 def process_email(req: ProcessEmailRequest):
     """
     Runs the full multi-agent pipeline for one email:
-      1. Sentiment Analysis — understand sender's emotional state
-      2. Classification — categorize and prioritize
-      3. Summarization — extract key facts and action items
-      4. Draft Reply — with settings, thread memory, and quality review
-      5. Entity Extraction — todos, meetings, orders
+      1. Classification + Sentiment (merged — single Gemini call)
+      2. Summarization — extract key facts and action items
+      3. Draft Reply — with settings, thread memory, and quality review
+      4. Entity Extraction — todos, meetings, orders
 
-    The sentiment data flows into the drafter so replies are empathetic
-    and tone-appropriate. The quality review agent ensures every draft
-    meets a minimum quality bar before being returned.
+    If the email was already processed, returns cached results from the
+    database immediately without making any Gemini API calls.
 
     Args:
         req (ProcessEmailRequest): validated request with all email fields
 
     Returns:
-        dict: email_id, sentiment, classification, summary, draft,
+        dict: email_id, classification, summary, draft,
               extracted entities, already_processed
     """
     print(
@@ -229,20 +227,76 @@ def process_email(req: ProcessEmailRequest):
     )
     already = is_processed(req.email_id)
 
-    # Step 1: Sentiment Analysis (new multi-agent step)
-    sentiment_data = analyze_sentiment(req.subject, req.body_plain, req.sender_email)
+    # --- Cache hit: return stored results without any Gemini calls ---
+    if already:
+        import json
+
+        cached = get_email(req.email_id)
+        if cached and cached.get("classification"):
+            print(f"[Route /process-email] Cache hit — returning stored results")
+
+            # Parse cached JSON strings back into dicts
+            classification = None
+            summary = None
+            draft = None
+
+            try:
+                classification = json.loads(cached["classification"]) if cached["classification"] else None
+            except (json.JSONDecodeError, TypeError):
+                classification = None
+
+            try:
+                summary = json.loads(cached["summary"]) if cached["summary"] else None
+            except (json.JSONDecodeError, TypeError):
+                summary = None
+
+            if cached.get("draft_reply"):
+                draft = {
+                    "draft_reply": cached["draft_reply"],
+                    "confidence_score": cached.get("draft_confidence", 0.5),
+                    "suggested_subject": cached.get("draft_subject", f"Re: {req.subject}"),
+                }
+
+            # Only return cached if we actually have the core data
+            if classification and summary and draft:
+                return {
+                    "email_id": req.email_id,
+                    "classification": classification,
+                    "summary": summary,
+                    "draft": draft,
+                    "todos": [],
+                    "meetings": [],
+                    "order": None,
+                    "already_processed": True,
+                }
+
+        # Cache miss or incomplete data — fall through to re-process
+        print(f"[Route /process-email] Cache incomplete — re-processing")
+
+    # --- Fresh processing ---
+
+    # Step 1: Classification + Sentiment (merged into one Gemini call)
+    classification = classify_email(req.subject, req.sender_email, req.body_plain)
     print(
-        f"[Route /process-email] Sentiment: {sentiment_data.get('sentiment')}, "
-        f"critical: {sentiment_data.get('is_critical')}"
+        f"[Route /process-email] Classification: category={classification.get('category')}, "
+        f"sentiment={classification.get('sender_sentiment')}, "
+        f"critical={classification.get('is_critical')}"
     )
 
-    # Step 2: Classification
-    classification = classify_email(req.subject, req.sender_email, req.body_plain)
+    # Extract sentiment data from the merged classifier output
+    # (used by the drafter for tone-matching)
+    sentiment_data = {
+        "sender_sentiment": classification.get("sender_sentiment", "neutral"),
+        "sentiment_intensity": classification.get("sentiment_intensity", 0.3),
+        "is_critical": classification.get("is_critical", False),
+        "alert_reason": classification.get("alert_reason", ""),
+        "recommended_reply_tone": classification.get("recommended_reply_tone", "professional"),
+    }
 
-    # Step 3: Summarization
+    # Step 2: Summarization
     summary = summarize_email(req.subject, req.body_plain)
 
-    # Step 4: Multi-agent Draft (with settings, sentiment, thread memory, review)
+    # Step 3: Multi-agent Draft (with settings, sentiment, thread memory, review)
     draft = draft_reply(
         req.subject,
         req.body_plain,
@@ -329,7 +383,6 @@ def process_email(req: ProcessEmailRequest):
 
     return {
         "email_id": req.email_id,
-        "sentiment": sentiment_data,
         "classification": classification,
         "summary": summary,
         "draft": draft,

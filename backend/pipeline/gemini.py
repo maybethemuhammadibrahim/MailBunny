@@ -1,17 +1,39 @@
 # backend/pipeline/gemini.py
 # ---------------------------------------------------------------
-# Shared Google Gemini client used by all three pipeline modules
-# (classifier, summarizer, drafter). Keeps the API key, model
-# names, and retry logic in one place so each pipeline function
-# stays short and focused on its prompt.
+# Shared Google Gemini client used by all pipeline modules
+# (classifier, summarizer, drafter, extractors, reviewer).
+# Keeps the API key, model names, retry logic, and rate-limit
+# throttle in one place so each pipeline function stays short.
 # ---------------------------------------------------------------
 
 import json
+import threading
 import time
 
 from config import AI_MODEL_DRAFT, AI_MODEL_FAST, GEMINI_API_KEY
 from google import genai
 from google.genai import types
+
+# ---------------------------------------------------------------------------
+# Global rate-limit throttle
+# Ensures a minimum delay between consecutive Gemini API calls so we
+# stay under the Free Tier quota of 15 requests per minute.
+# 4.5 seconds between calls ≈ 13 RPM, leaving a small safety margin.
+# ---------------------------------------------------------------------------
+_throttle_lock = threading.Lock()
+_last_call_time = 0.0
+MIN_CALL_DELAY = 4.5  # seconds between consecutive API calls
+
+
+def _throttle():
+    """Blocks until MIN_CALL_DELAY seconds have passed since the last call."""
+    global _last_call_time
+    with _throttle_lock:
+        now = time.time()
+        wait = max(0, MIN_CALL_DELAY - (now - _last_call_time))
+        if wait > 0:
+            time.sleep(wait)
+        _last_call_time = time.time()
 
 
 def get_client():
@@ -51,6 +73,9 @@ def call_gemini(prompt: str, system: str, model: str = None, temperature: float 
     """
     model = model or AI_MODEL_FAST
     client = get_client()
+
+    # Enforce global rate limit before every API call
+    _throttle()
 
     # Build the generation config — optionally include temperature
     # Higher temperature = more creative, varied, human-like language
@@ -93,7 +118,7 @@ def call_gemini(prompt: str, system: str, model: str = None, temperature: float 
 
 # Convenience aliases so pipeline modules can import by intent
 def call_fast(prompt: str, system: str) -> dict:
-    """Calls the fast model (gemini-2.0-flash) — use for classify + summarize."""
+    """Calls the fast model (AI_MODEL_FAST from config) — use for classify + summarize."""
     return call_gemini(prompt, system, model=AI_MODEL_FAST)
 
 

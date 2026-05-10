@@ -58,7 +58,7 @@ SYSTEM_TEMPLATE = (
 )
 
 
-def _build_system_prompt(sentiment: dict = None) -> str:
+def _build_system_prompt(sentiment: dict = None, settings: dict = None) -> str:
     """
     Builds the system prompt with injected user settings and sentiment data.
 
@@ -67,19 +67,21 @@ def _build_system_prompt(sentiment: dict = None) -> str:
     into every drafting call.
 
     Args:
-        sentiment (dict): output from analyze_sentiment(), or None
+        sentiment (dict): sentiment data from classifier output, or None
+        settings  (dict): pre-fetched AI settings to avoid redundant DB calls
 
     Returns:
         str: fully assembled system prompt with user preferences
     """
-    # Read stored AI settings from the database
-    settings = get_ai_settings()
+    # Use pre-fetched settings or read from DB (single source)
+    if settings is None:
+        settings = get_ai_settings()
 
     # Extract sentiment context (or use safe defaults)
     sent = sentiment or {}
-    sentiment_label = sent.get("sentiment", "neutral")
-    intensity = sent.get("intensity", 0.3)
-    recommended_tone = sent.get("recommended_tone", settings["tone"])
+    sentiment_label = sent.get("sender_sentiment", sent.get("sentiment", "neutral"))
+    intensity = sent.get("sentiment_intensity", sent.get("intensity", 0.3))
+    recommended_tone = sent.get("recommended_reply_tone", sent.get("recommended_tone", settings["tone"]))
 
     return SYSTEM_TEMPLATE.format(
         user_tone=settings["tone"],
@@ -126,10 +128,12 @@ def _build_prompt(
         f"Action items: {action_items}",
     ]
 
-    # Inject thread history (conversation memory) if available
+    # Inject thread history (conversation memory) if available.
+    # Limit to 3 most recent messages to control token usage.
     if thread_history:
+        recent_history = thread_history[-3:]  # Keep only the 3 most recent
         prompt_parts.append("\n--- PREVIOUS MESSAGES IN THIS THREAD (for context) ---")
-        for msg in thread_history:
+        for msg in recent_history:
             prompt_parts.append(
                 f"From: {msg['sender']} ({msg['timestamp'][:10]})\n"
                 f"Body excerpt: {msg['body_plain'][:300]}\n"
@@ -173,10 +177,14 @@ def draft_reply(
               review_score (float), review_feedback (str)
     """
     category = classification.get("category", "unknown")
+    priority = classification.get("priority_score", 5)
     print(f"[Drafter] Drafting — subject: '{subject[:60]}', category: {category}")
 
+    # Fetch settings once — shared by system prompt and review tone
+    settings = get_ai_settings()
+
     # Step 1: Build context-aware system prompt with user settings + sentiment
-    system = _build_system_prompt(sentiment)
+    system = _build_system_prompt(sentiment, settings=settings)
 
     # Step 2: Fetch thread history for conversation memory
     thread_history = []
@@ -210,41 +218,57 @@ def draft_reply(
             "review_feedback": "Draft generation failed — using fallback template.",
         }
 
-    # Step 4: Quality Review Agent — check the draft before returning
-    try:
-        # Determine the tone to review against
-        review_tone = "professional"
-        if sentiment and sentiment.get("recommended_tone"):
-            review_tone = sentiment["recommended_tone"]
-        else:
-            settings = get_ai_settings()
-            review_tone = settings["tone"]
+    # Step 4: Quality Review Agent — only for high-priority emails.
+    # Low-priority emails (newsletters, FYI) skip the review to save API quota.
+    # High-priority = priority_score >= 7 OR urgent/action-required category.
+    should_review = (
+        priority >= 7
+        or category in ("urgent", "action-required")
+    )
 
-        review = review_draft(
-            original_subject=subject,
-            original_body=body,
-            draft_text=draft_text,
-            requested_tone=review_tone,
-            sentiment=sentiment,
-        )
+    review_score = 0.7
+    review_feedback = ""
 
-        review_score = review.get("score", 0.7)
-        review_feedback = review.get("feedback", "")
+    if should_review:
+        try:
+            # Determine the tone to review against (use cached settings)
+            review_tone = "professional"
+            if sentiment:
+                review_tone = sentiment.get(
+                    "recommended_reply_tone",
+                    sentiment.get("recommended_tone", settings["tone"]),
+                )
+            else:
+                review_tone = settings["tone"]
 
-        # If the reviewer provided an improved version and rejected the original,
-        # use the improved version instead
-        if not review.get("approved", True) and review.get("improved_draft"):
-            print(f"[Drafter] Reviewer rejected (score={review_score}) — using improved draft")
-            draft_text = review["improved_draft"]
-            # Bump confidence slightly since the reviewed version is better
-            confidence = min(confidence + 0.1, 0.95)
+            review = review_draft(
+                original_subject=subject,
+                original_body=body,
+                draft_text=draft_text,
+                requested_tone=review_tone,
+                sentiment=sentiment,
+            )
 
-        print(f"[Drafter] Final — review_score={review_score}, approved={review.get('approved')}")
+            review_score = review.get("score", 0.7)
+            review_feedback = review.get("feedback", "")
 
-    except Exception as exc:
-        print(f"[Drafter] Quality review failed: {exc} — skipping review")
-        review_score = 0.7
-        review_feedback = "Review skipped due to error."
+            # If the reviewer provided an improved version and rejected the original,
+            # use the improved version instead
+            if not review.get("approved", True) and review.get("improved_draft"):
+                print(f"[Drafter] Reviewer rejected (score={review_score}) — using improved draft")
+                draft_text = review["improved_draft"]
+                # Bump confidence slightly since the reviewed version is better
+                confidence = min(confidence + 0.1, 0.95)
+
+            print(f"[Drafter] Final — review_score={review_score}, approved={review.get('approved')}")
+
+        except Exception as exc:
+            print(f"[Drafter] Quality review failed: {exc} — skipping review")
+            review_score = 0.7
+            review_feedback = "Review skipped due to error."
+    else:
+        print(f"[Drafter] Skipping review — low priority (score={priority}, category={category})")
+        review_feedback = "Review skipped — low priority email."
 
     return {
         "draft_reply": draft_text,

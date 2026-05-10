@@ -5,7 +5,6 @@
 # when the classifier sets is_order_email = true.
 # ---------------------------------------------------------------
 
-import time
 
 from pipeline.gemini import call_fast
 
@@ -118,10 +117,9 @@ def extract_order(subject, body, sender):
     This function should only be called when the classifier has set
     is_order_email = true, avoiding unnecessary API calls.
 
-    Retry behaviour:
-        If call_fast() fails on the first attempt (handled internally by
-        call_fast), this function catches the exception, waits 2 seconds,
-        and tries once more. On a second failure it returns DEFAULT_ORDER.
+    Retry behaviour is handled centrally by call_fast() in gemini.py
+    (3 attempts with increasing backoff). On complete failure, returns
+    DEFAULT_ORDER so the pipeline never crashes.
 
     Args:
         subject (str): the email subject line
@@ -137,25 +135,11 @@ def extract_order(subject, body, sender):
 
     prompt = _build_prompt(subject, body, sender)
 
-    # Attempt 1 — call_fast() already has one internal retry (see gemini.py),
-    # so we wrap it in a second try/except for an extra safety net.
     try:
         result = call_fast(prompt, ORDER_SYSTEM_PROMPT)
         clean = _sanitize_result(result)
         print(f"[OrderExtractor] Success — retailer={clean['retailer']}, status={clean['status']}")
         return clean
-
     except Exception as exc:
-        print(f"[OrderExtractor] First attempt failed: {exc}. Waiting 2s and retrying…")
-        time.sleep(2)
-
-    # Attempt 2 — final try before giving up
-    try:
-        result = call_fast(prompt, ORDER_SYSTEM_PROMPT)
-        clean = _sanitize_result(result)
-        print(f"[OrderExtractor] Retry success — retailer={clean['retailer']}")
-        return clean
-
-    except Exception as exc:
-        print(f"[OrderExtractor] Both attempts failed: {exc}. Returning safe default.")
+        print(f"[OrderExtractor] Extraction failed: {exc}. Returning safe default.")
         return DEFAULT_ORDER

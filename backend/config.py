@@ -25,14 +25,15 @@ REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/api/auth/callbac
 # We use the native google-genai SDK (no OpenAI wrapper).
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# gemini-2.0-flash: highest free-tier quota (1500 req/day)
-# gemini-2.0-flash-lite: separate lighter model with its own quota bucket
-# gemini-2.5-flash has only 20 req/day on free tier — too low for dev!
-# Switch between flash and flash-lite if one quota runs out.
-AI_MODEL_FAST = "gemini-2.0-flash-lite"
+# Available models (tested and working):
+#   gemini-2.5-flash       — best quality, generous free-tier quota
+#   gemini-2.5-flash-lite  — fastest, lightweight, own quota bucket
+#   gemini-3.1-flash-lite  — newest preview, separate quota bucket
+# Deprecated (limit: 0 quota): gemini-2.0-flash, gemini-2.0-flash-lite
+AI_MODEL_FAST = "gemini-2.5-flash-lite"
 
-# Same model for drafting — using flash-lite while flash quota recovers
-AI_MODEL_DRAFT = "gemini-2.0-flash-lite"
+# Use the higher-quality model for drafting (needs more creativity)
+AI_MODEL_DRAFT = "gemini-2.5-flash"
 
 # --- App Secrets ---
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")

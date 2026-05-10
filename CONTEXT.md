@@ -1,12 +1,12 @@
 # MailMind — Project Context
 
 ## Last updated
-Phase 10 — Orders Page UI (2026-05-09)
+Phase 13 — Pipeline Optimization & Model Migration (2026-05-10)
 
 ## What has been built
 - Project directory structure configured for a FastAPI + Jinja2 monolith
 - Backend: FastAPI app with CORS, UI pages router (`routes/pages.py`), and 8 API route modules prefixed with `/api`
-- Backend: 3 AI pipeline modules using **Google Gemini** (not OpenAI) via the native `google-genai` SDK
+- Backend: 7 AI pipeline modules using **Google Gemini** (not OpenAI) via the native `google-genai` SDK
 - Backend: Shared Gemini client (`pipeline/gemini.py`) with JSON-mode, retry logic, and convenience aliases
 - Backend: SQLite database module with 5 tables (processed_emails, todos, meetings, orders, settings) and deduplication helpers
 - Backend: `config.py` loading env vars from `.env` via python-dotenv — uses `GEMINI_API_KEY` (no OpenAI key required)
@@ -33,14 +33,17 @@ Phase 10 — Orders Page UI (2026-05-09)
 ### Phase 3 additions
 - **`backend/pipeline/gemini.py`** — Shared Google Gemini client:
   - Uses the native `google-genai` SDK (not the OpenAI compatibility wrapper)
-  - `call_gemini(prompt, system, model)` — JSON-mode call with `response_mime_type='application/json'`
-  - Automatic 1-retry with 2-second backoff on failure
-  - `call_fast()` — alias for the fast model (gemini-2.5-flash), used by classifier + summarizer
-  - `call_draft()` — alias for the draft model (gemini-2.5-flash, upgradeable to gemini-2.5-pro)
-- **`backend/pipeline/classifier.py`** — Email classification using Gemini:
-  - `classify_email(subject, sender, body)` with 4 few-shot examples
-  - Returns: `{ category, priority_score, requires_reply, is_spam, is_order_email, action_items }`
+  - `call_gemini(prompt, system, model, temperature)` — JSON-mode call with `response_mime_type='application/json'`
+  - Global rate-limit throttle (4.5s between calls) to stay under free-tier RPM limits
+  - 3-attempt retry with increasing backoff (2s → 12s → 20s) on 429 errors
+  - `call_fast()` — alias for the fast model (gemini-2.5-flash-lite), used by classifier + summarizer + extractors
+  - `call_draft()` — alias for the draft model (gemini-2.5-flash) with temperature=0.9 for natural text
+  - `call_review()` — alias for the fast model with temperature=0.2 for consistent analytical reviews
+- **`backend/pipeline/classifier.py`** — Email classification + sentiment analysis using Gemini:
+  - `classify_email(subject, sender, body)` with 4 few-shot examples — **merged sentiment into classification** (saves 1 API call)
+  - Returns: `{ category, priority_score, requires_reply, is_spam, is_order_email, action_items, sender_sentiment, sentiment_intensity, is_critical, alert_reason, recommended_reply_tone }`
   - Categories: urgent, action-required, meeting-request, order-update, newsletter, spam, fyi
+  - Input validation with safe defaults on empty/missing fields, value clamping on priority_score
 - **`backend/pipeline/summarizer.py`** — Email summarization using Gemini:
   - `summarize_email(subject, body)`
   - Returns: `{ one_line_summary, key_facts, action_items }`
@@ -76,8 +79,10 @@ Phase 10 — Orders Page UI (2026-05-09)
   - Tasks and meetings now load live data from `/api/todos` and `/api/meetings`
 - **`backend/config.py`** — Updated for Gemini:
   - `GEMINI_API_KEY` loaded from `.env`
-  - `AI_MODEL_FAST = "gemini-2.5-flash"` — for classify + summarize
-  - `AI_MODEL_DRAFT = "gemini-2.5-flash"` — for drafting (upgradeable to gemini-2.5-pro)
+  - `AI_MODEL_FAST = "gemini-2.5-flash-lite"` — for classify + summarize + extract (lightweight, fast)
+  - `AI_MODEL_DRAFT = "gemini-2.5-flash"` — for drafting (higher quality, more creative)
+  - Deprecated models documented: gemini-2.0-flash, gemini-2.0-flash-lite (limit: 0 quota)
+  - Fallback option: `gemini-3.1-flash-lite` (separate quota bucket)
   - OpenAI references removed
 
 ### Phase 4 additions
@@ -168,6 +173,34 @@ Phase 10 — Orders Page UI (2026-05-09)
   - `renderStats(stats)` — injects stat values into the three card elements
   - `/orders` page route already existed in `pages.py` — no backend changes needed
 
+### Phase 13 additions — Pipeline Optimization & Model Migration
+- **Model Migration** — Switched from deprecated models to current ones:
+  - `gemini-2.0-flash` and `gemini-2.0-flash-lite` → **deprecated** (return `limit: 0` quota)
+  - `AI_MODEL_FAST` → `gemini-2.5-flash-lite` (lightweight, fast, own quota bucket)
+  - `AI_MODEL_DRAFT` → `gemini-2.5-flash` (higher quality for creative text)
+  - `gemini-3.1-flash-lite` documented as fallback (separate quota bucket)
+- **`backend/pipeline/gemini.py`** — Rate-limit throttle + improved retries:
+  - Global thread-safe throttle: 4.5s minimum delay between API calls (≈13 RPM, under 15 RPM free-tier limit)
+  - 3-attempt retry with escalating backoff (2s → 12s → 20s) for 429 errors
+  - `call_review()` alias added (temperature=0.2 for analytical consistency)
+- **`backend/pipeline/classifier.py`** — Merged sentiment analysis:
+  - Sentiment analysis keys (sender_sentiment, sentiment_intensity, is_critical, alert_reason, recommended_reply_tone) now returned alongside classification in a **single API call** — eliminates the separate `/api/sentiment` endpoint
+  - Input validation: empty fields return safe defaults, priority_score clamped to 1-10
+- **`backend/pipeline/drafter.py`** — Conditional quality review:
+  - Quality review agent now **only runs** for high-priority emails (priority_score ≥ 7 or urgent/action-required categories)
+  - Thread history limited to 3 most recent messages to save tokens
+  - DB settings cached per call to avoid redundant queries
+- **`backend/pipeline/todo_extractor.py`** — Body text truncated to 2000 chars to prevent excessive token usage
+- **`backend/pipeline/meeting_extractor.py`** — Body text truncated to 2000 chars
+- **`backend/pipeline/order_extractor.py`** — Removed redundant outer retry loop (was causing cascading API calls)
+- **`backend/pipeline/reviewer.py`** — Switched from `call_fast()` to `call_review()` (temperature=0.2)
+- **`backend/pipeline/crafter.py`** — Fixed tone parameter injection + defensive empty-dict check
+- **`backend/routes/pipeline.py`** — Database-backed caching:
+  - `/api/process-email` now checks DB for cached results before running pipeline
+  - Already-processed emails return instantly from SQLite (0 API calls)
+  - Merged sentiment flow into classifier response
+- **`backend/test_gemini_raw.py`** — Standalone diagnostic script to test model availability and quota
+
 ## What is working
 - Backend: All pages are routable via FastAPI Jinja2 template responses
 - Frontend: Sidebar navigation shows correct active state per route
@@ -209,15 +242,21 @@ Phase 10 — Orders Page UI (2026-05-09)
 ## Known issues / incomplete
 - Tailwind CSS may need recompilation when new utility classes are added (`npx @tailwindcss/cli -i static/input.css -o static/style.css`)
 - All page content except crafter/settings pages still placeholder (Phases 9, 11)
-- n8n workflow is empty placeholder (Phase 12)
+- n8n workflow exists but `"active": false` — still calls deprecated `/api/sentiment` endpoint and deprecated models
+- n8n workflow's "Filter Unprocessed" node processes ALL unprocessed emails in a burst — needs sequential processing with delays if activated
 - `token.json` is saved to project root — it is in `.gitignore` (contains OAuth secrets)
-- orders.html page still renders placeholder content (Phase 10 will wire up the UI)
+- Deprecated models `gemini-2.0-flash` and `gemini-2.0-flash-lite` return `limit: 0` quota — do NOT use
 
 ## Environment
-- Python version: 3.11+
+- Python version: 3.14+ (tested on 3.14)
 - n8n version: latest (install via `npm install -g n8n`)
 - Tailwind CSS version: 4.x via CLI (`npx @tailwindcss/cli`)
-- **AI: Google Gemini** via `google-genai` SDK (FREE tier: 1,500 req/day, 1M tokens/day, no credit card)
+- **AI: Google Gemini** via `google-genai` SDK (FREE tier, no credit card)
+  - `gemini-2.5-flash-lite` — fast model for classification/summarization/extraction
+  - `gemini-2.5-flash` — quality model for drafting/reviewing
+  - `gemini-3.1-flash-lite` — fallback if either quota runs out
+  - **Do NOT use:** `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-flash` (deprecated, limit: 0)
+- API key must be from **Google AI Studio** (https://aistudio.google.com/apikey), NOT Google Cloud Console
 - Key env vars required: GEMINI_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, REDIRECT_URI, SECRET_KEY, DATABASE_PATH
 - `REDIRECT_URI` must be set to `http://localhost:8000/api/auth/callback` (in .env AND in Google Cloud Console)
 - OpenAI is NOT used — all AI calls go through Gemini
@@ -258,15 +297,18 @@ mailmind/
 │   │   ├── style.css                    — Compiled Tailwind output
 │   │   └── app.js                       — Vanilla JavaScript (sidebar active state)
 │   └── pipeline/
-│       ├── gemini.py                    — Shared Gemini client: call_fast(), call_draft() ✅ Phase 3
-│       ├── classifier.py                — classify_email() with few-shot prompting ✅ Phase 3
+│       ├── gemini.py                    — Shared Gemini client: call_fast(), call_draft(), call_review() + throttle ✅ Phase 3+13
+│       ├── classifier.py                — classify_email() + sentiment analysis (merged) ✅ Phase 3+13
 │       ├── summarizer.py                — summarize_email() → headline + facts + actions ✅ Phase 3
-│       ├── drafter.py                   — draft_reply() with classification/summary context ✅ Phase 3
-│       ├── todo_extractor.py            — Gemini todo extraction ✅ Phase 4
-│       ├── meeting_extractor.py         — Gemini meeting extraction ✅ Phase 4
-│       └── order_extractor.py           — Gemini order extraction ✅ Phase 5
+│       ├── drafter.py                   — draft_reply() with conditional quality review ✅ Phase 3+13
+│       ├── reviewer.py                  — review_draft() quality gate using call_review() ✅ Phase 13
+│       ├── crafter.py                   — craft_email() with tone injection ✅ Phase 13
+│       ├── todo_extractor.py            — Gemini todo extraction (2000 char truncation) ✅ Phase 4+13
+│       ├── meeting_extractor.py         — Gemini meeting extraction (2000 char truncation) ✅ Phase 4+13
+│       └── order_extractor.py           — Gemini order extraction (deduplicated retries) ✅ Phase 5+13
+│   test_gemini_raw.py                   — Standalone model availability diagnostic script ✅ Phase 13
 ├── n8n/
-│   └── workflow.json                    — empty n8n workflow placeholder (Phase 12)
+│   └── workflow.json                    — Multi-agent n8n workflow (active: false) ✅ Phase 12
 ```
 
 ## Next phase instructions

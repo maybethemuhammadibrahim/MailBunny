@@ -11,7 +11,7 @@ from pipeline.gemini import call_fast
 
 def extract_meetings(subject, body, sender):
     """
-    Extracts meeting events from an email using GPT-4o-mini.
+    Extracts meeting events from an email using Gemini Flash.
 
     Args:
         subject (str): the email subject line
@@ -28,7 +28,7 @@ def extract_meetings(subject, body, sender):
 Email Subject: {subject}
 Sender: {sender}
 Email Body:
-{body}
+{body[:2000]}
 """.strip()
 
     system = """

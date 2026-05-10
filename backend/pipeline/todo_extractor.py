@@ -10,7 +10,7 @@ from pipeline.gemini import call_fast
 
 def extract_todos(subject, body, sender):
     """
-    Extracts to-do items from an email using GPT-4o-mini.
+    Extracts to-do items from an email using Gemini Flash.
 
     Args:
         subject (str): the email subject line
@@ -26,7 +26,7 @@ def extract_todos(subject, body, sender):
 Email Subject: {subject}
 Sender: {sender}
 Email Body:
-{body}
+{body[:2000]}
 """.strip()
 
     system = """

@@ -53,7 +53,8 @@ SYSTEM_TEMPLATE = (
     "minimum 4 sentences, NEVER a copy of the user's prompt),\n"
     '  "subject_suggestion": (string — a concise, natural subject line; if one was provided, '
     "refine it to sound better).\n"
-    "Do NOT add any other keys. Do NOT wrap the JSON in markdown code fences."
+    "Do NOT add any other keys. Do NOT wrap the JSON in markdown code fences.\n\n"
+    "IMPORTANT: The tone for THIS specific email is: {requested_tone}. Match it exactly."
 )
 
 
@@ -103,6 +104,7 @@ def _build_system_prompt(tone: str) -> str:
     return SYSTEM_TEMPLATE.format(
         default_tone=settings["tone"],
         vocabulary=", ".join(settings["vocabulary"]),
+        requested_tone=tone,
     )
 
 
@@ -215,7 +217,11 @@ def craft_email(prompt, tone="professional", recipient="", subject=""):
 
         if not email_text:
             print(f"[Crafter] Warning: could not extract email from: {result}")
-            email_text = str(result.get(list(result.keys())[0], "")) if result else ""
+            email_text = ""
+            if result:
+                first_key = next(iter(result), None)
+                if first_key:
+                    email_text = str(result[first_key])
 
         print(f"[Crafter] Initial draft — subject: '{subject_text[:60]}'")
 

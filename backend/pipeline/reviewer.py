@@ -7,7 +7,7 @@
 # email workflow pattern.
 # ---------------------------------------------------------------
 
-from pipeline.gemini import call_fast
+from pipeline.gemini import call_review
 
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def review_draft(
     )
 
     try:
-        result = call_fast(prompt, SYSTEM)
+        result = call_review(prompt, SYSTEM)
         score = result.get("score", 0.5)
         approved = result.get("approved", score >= 0.7)
 
