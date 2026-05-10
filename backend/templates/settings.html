@@ -59,11 +59,12 @@
                         </div>
                     </div>
                     <h3
+                        id="profile-name"
                         class="font-h2 text-[20px] font-semibold mt-4 text-on-surface-variant"
                     >
-                        —
+                        MailMind User
                     </h3>
-                    <p class="font-body-md text-[13px] text-on-surface-variant">
+                    <p id="profile-connection" class="font-body-md text-[13px] text-on-surface-variant">
                         Connected via Gmail
                     </p>
                     <div class="w-full mt-6 space-y-4">
@@ -75,7 +76,8 @@
                                 >Email</span
                             >
                             <span
-                                class="font-body-md text-[13px] font-medium text-on-surface-variant/60"
+                                id="profile-email"
+                                class="font-body-md text-[13px] font-medium text-on-surface"
                                 >—</span
                             >
                         </div>
@@ -87,8 +89,8 @@
                                 >Role</span
                             >
                             <span
-                                class="font-body-md text-[13px] font-medium text-on-surface-variant/60"
-                                >—</span
+                                class="font-body-md text-[13px] font-medium text-on-surface"
+                                >User</span
                             >
                         </div>
                         <div class="flex justify-between items-center py-2">
@@ -97,7 +99,8 @@
                                 >Timezone</span
                             >
                             <span
-                                class="font-body-md text-[13px] font-medium text-on-surface-variant/60"
+                                id="profile-timezone"
+                                class="font-body-md text-[13px] font-medium text-on-surface"
                                 >—</span
                             >
                         </div>
@@ -127,7 +130,7 @@
                             <label class="font-body-lg text-[15px] font-medium"
                                 >Tone of Voice</label
                             >
-                            <span class="font-body-md text-[13px] text-primary"
+                            <span id="tone-label" class="font-body-md text-[13px] text-primary"
                                 >Professional</span
                             >
                         </div>
@@ -138,13 +141,17 @@
                             emails and drafts.
                         </p>
                         <div
-                            class="relative w-full h-2 bg-surface-container-high rounded-full"
+                            id="tone-track"
+                            onclick="onToneClick(event)"
+                            class="relative w-full h-2 bg-surface-container-high rounded-full cursor-pointer"
                         >
                             <div
-                                class="absolute top-0 left-0 h-full w-2/3 bg-primary rounded-full"
+                                id="tone-fill"
+                                class="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none" style="width:100%"
                             ></div>
                             <div
-                                class="absolute top-1/2 left-2/3 -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-surface-container-lowest border-2 border-primary rounded-full shadow-sm cursor-pointer"
+                                id="tone-knob"
+                                class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-5 h-5 bg-surface-container-lowest border-2 border-primary rounded-full shadow-sm pointer-events-none" style="left:100%"
                             ></div>
                         </div>
                         <div
@@ -183,9 +190,12 @@
                         </div>
                         <!-- Toggle Switch -->
                         <button
+                            id="auto-draft-toggle"
+                            onclick="toggleAutoDraft()"
                             class="w-12 h-6 bg-primary rounded-full relative transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 focus:ring-offset-surface"
                         >
                             <span
+                                id="auto-draft-dot"
                                 class="absolute right-1 top-1 w-4 h-4 bg-surface-container-lowest rounded-full shadow-sm transition-transform"
                             ></span>
                         </button>
@@ -196,34 +206,8 @@
                             class="font-body-lg text-[15px] font-medium block mb-3"
                             >Vocabulary Focus</label
                         >
-                        <div class="flex flex-wrap gap-2">
-                            <span
-                                class="px-3 py-1.5 bg-primary text-on-primary font-body-md text-[13px] rounded-full cursor-pointer flex items-center gap-1"
-                            >
-                                Concise
-                                <span
-                                    class="material-symbols-outlined text-[14px]"
-                                    >close</span
-                                >
-                            </span>
-                            <span
-                                class="px-3 py-1.5 bg-primary text-on-primary font-body-md text-[13px] rounded-full cursor-pointer flex items-center gap-1"
-                            >
-                                Action-oriented
-                                <span
-                                    class="material-symbols-outlined text-[14px]"
-                                    >close</span
-                                >
-                            </span>
-                            <span
-                                class="px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-body-md text-[13px] rounded-full hover:bg-surface-dim transition-colors cursor-pointer border border-outline-variant flex items-center gap-1"
-                            >
-                                <span
-                                    class="material-symbols-outlined text-[16px]"
-                                    >add</span
-                                >
-                                Add Trait
-                            </span>
+                        <div id="vocab-chips" class="flex flex-wrap gap-2">
+                            <!-- Chips rendered dynamically by JS from /api/settings -->
                         </div>
                     </div>
                 </div>
@@ -324,28 +308,238 @@
                     </p>
                 </div>
                 <button
+                    onclick="enable2FA()"
                     class="px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface font-label-md text-[12px] font-bold rounded-lg hover:bg-surface-container-low transition-colors shadow-sm"
                 >
                     Enable
                 </button>
+            </div>
+
+            <!-- Danger Zone -->
+            <div
+                class="bg-surface-container-lowest rounded-xl shadow-sm border border-red-200 p-card-padding"
+            >
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3
+                            class="font-body-lg text-[15px] font-medium flex items-center gap-2 text-error"
+                        >
+                            <span class="material-symbols-outlined text-error"
+                                >warning</span
+                            >
+                            Danger Zone
+                        </h3>
+                        <p
+                            class="font-body-md text-[13px] text-on-surface-variant mt-1"
+                        >
+                            Permanently delete all processed emails, todos,
+                            meetings, and orders. Settings will be preserved.
+                        </p>
+                    </div>
+                    <button
+                        onclick="deleteAllData()"
+                        class="px-4 py-2 bg-error text-on-error font-label-md text-[12px] font-bold rounded-lg hover:bg-error/90 transition-colors shadow-sm whitespace-nowrap"
+                    >
+                        Delete All Data
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %} {% block scripts %}
 <script>
-    // Check if user just came back from Google OAuth (?auth=success in URL)
+    // ---------------------------------------------------------------
+    // Settings page JavaScript — Phase 11
+    // Wires all UI controls to the /api/settings endpoints so every
+    // preference change is persisted to SQLite immediately.
+    // ---------------------------------------------------------------
+
+    // --- Toast notification (reusable) ---
+    function showSettingsToast(msg, type = "info") {
+        const existing = document.getElementById("settings-toast");
+        if (existing) existing.remove();
+
+        const colors = {
+            success: "bg-green-100 text-green-800 border-green-300",
+            error: "bg-red-100 text-red-800 border-red-300",
+            info: "bg-primary/10 text-primary border-primary/30",
+        };
+
+        const toast = document.createElement("div");
+        toast.id = "settings-toast";
+        toast.className = `fixed bottom-6 right-6 px-5 py-3 rounded-lg border shadow-lg text-sm font-medium z-50 ${colors[type] || colors.info}`;
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // --- Tone slider logic ---
+    const TONE_LEVELS = ["casual", "balanced", "professional"];
+    let currentTone = "professional";
+
+    function setToneUI(tone) {
+        const index = TONE_LEVELS.indexOf(tone);
+        if (index === -1) return;
+
+        const pct = (index / (TONE_LEVELS.length - 1)) * 100;
+        const bar = document.getElementById("tone-fill");
+        const knob = document.getElementById("tone-knob");
+        const label = document.getElementById("tone-label");
+
+        if (bar) bar.style.width = pct + "%";
+        if (knob) knob.style.left = pct + "%";
+        if (label) label.textContent = tone.charAt(0).toUpperCase() + tone.slice(1);
+
+        currentTone = tone;
+    }
+
+    function onToneClick(event) {
+        const slider = document.getElementById("tone-track");
+        if (!slider) return;
+
+        const rect = slider.getBoundingClientRect();
+        const ratio = (event.clientX - rect.left) / rect.width;
+        const index = Math.round(ratio * (TONE_LEVELS.length - 1));
+        const tone = TONE_LEVELS[Math.max(0, Math.min(index, TONE_LEVELS.length - 1))];
+
+        setToneUI(tone);
+        saveSetting("tone", tone);
+    }
+
+    // --- Auto-draft toggle ---
+    let autoDraftEnabled = true;
+
+    function toggleAutoDraft() {
+        autoDraftEnabled = !autoDraftEnabled;
+        updateToggleUI();
+        saveSetting("auto_draft", autoDraftEnabled ? "true" : "false");
+    }
+
+    function updateToggleUI() {
+        const btn = document.getElementById("auto-draft-toggle");
+        const dot = document.getElementById("auto-draft-dot");
+        if (!btn || !dot) return;
+
+        if (autoDraftEnabled) {
+            btn.className = "w-12 h-6 bg-primary rounded-full relative transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 focus:ring-offset-surface";
+            dot.className = "absolute right-1 top-1 w-4 h-4 bg-surface-container-lowest rounded-full shadow-sm transition-transform";
+        } else {
+            btn.className = "w-12 h-6 bg-surface-container-high rounded-full relative transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 focus:ring-offset-surface";
+            dot.className = "absolute left-1 top-1 w-4 h-4 bg-surface-container-lowest rounded-full shadow-sm transition-transform";
+        }
+    }
+
+    // --- Vocabulary chips ---
+    let vocabTraits = [];
+
+    function renderVocabChips() {
+        const container = document.getElementById("vocab-chips");
+        if (!container) return;
+
+        let html = "";
+        vocabTraits.forEach((trait) => {
+            html += `<span class="px-3 py-1.5 bg-primary text-on-primary font-body-md text-[13px] rounded-full cursor-pointer flex items-center gap-1" onclick="removeVocab('${trait}')">
+                ${trait}
+                <span class="material-symbols-outlined text-[14px]">close</span>
+            </span>`;
+        });
+        html += `<span class="px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-body-md text-[13px] rounded-full hover:bg-surface-dim transition-colors cursor-pointer border border-outline-variant flex items-center gap-1" onclick="addVocabPrompt()">
+            <span class="material-symbols-outlined text-[16px]">add</span>
+            Add Trait
+        </span>`;
+        container.innerHTML = html;
+    }
+
+    function removeVocab(trait) {
+        vocabTraits = vocabTraits.filter((t) => t !== trait);
+        renderVocabChips();
+        saveSetting("vocabulary", vocabTraits.join(","));
+    }
+
+    function addVocabPrompt() {
+        const trait = prompt("Enter a new writing trait (e.g. Empathetic, Detailed):");
+        if (trait && trait.trim()) {
+            vocabTraits.push(trait.trim());
+            renderVocabChips();
+            saveSetting("vocabulary", vocabTraits.join(","));
+        }
+    }
+
+    // --- Save a single setting via PATCH ---
+    async function saveSetting(key, value) {
+        try {
+            const body = {};
+            body[key] = value;
+            await fetch("/api/settings/ai", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            showSettingsToast("Setting saved", "success");
+        } catch (err) {
+            console.error("Failed to save setting:", err);
+            showSettingsToast("Failed to save", "error");
+        }
+    }
+
+    // --- Delete all data ---
+    async function deleteAllData() {
+        const confirmed = confirm(
+            "⚠️ This will permanently delete ALL processed emails, todos, meetings, and orders.\n\nYour settings will be preserved.\n\nAre you sure?"
+        );
+        if (!confirmed) return;
+
+        try {
+            const res = await fetch("/api/settings/data", { method: "DELETE" });
+            const data = await res.json();
+            if (data.success) {
+                showSettingsToast("All data deleted successfully", "success");
+            } else {
+                showSettingsToast(data.error || "Delete failed", "error");
+            }
+        } catch (err) {
+            showSettingsToast("Failed to delete data", "error");
+        }
+    }
+
+    // --- 2FA placeholder ---
+    function enable2FA() {
+        showSettingsToast("Two-Factor Authentication is coming soon!", "info");
+    }
+
+    // --- Load settings on page load ---
+    async function loadSettings() {
+        try {
+            const res = await fetch("/api/settings");
+            const data = await res.json();
+
+            // Tone
+            if (data.tone) setToneUI(data.tone);
+
+            // Auto-draft
+            if (data.auto_draft !== undefined) {
+                autoDraftEnabled = data.auto_draft === "true";
+                updateToggleUI();
+            }
+
+            // Vocabulary
+            if (data.vocabulary) {
+                vocabTraits = data.vocabulary.split(",").filter((t) => t.trim());
+                renderVocabChips();
+            }
+        } catch (err) {
+            console.error("Failed to load settings:", err);
+        }
+    }
+
+    // --- Gmail status check (already existed, preserved) ---
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") === "success") {
-        document
-            .getElementById("auth-success-banner")
-            .classList.remove("hidden");
-        // Clean up the URL so the banner doesn't persist on refresh
+        document.getElementById("auth-success-banner").classList.remove("hidden");
         window.history.replaceState({}, "", "/settings");
     }
 
-    // Poll /api/auth/status to find out if Gmail is connected,
-    // then update the card UI (badge + buttons) to reflect the state.
     async function checkGmailStatus() {
         try {
             const res = await fetch("/api/auth/status");
@@ -354,43 +548,43 @@
             const badge = document.getElementById("gmail-badge");
             const statusText = document.getElementById("gmail-status-text");
             const connectBtn = document.getElementById("gmail-connect-btn");
-            const disconnectBtn = document.getElementById(
-                "gmail-disconnect-btn",
-            );
+            const disconnectBtn = document.getElementById("gmail-disconnect-btn");
 
             if (data.connected) {
-                statusText.textContent =
-                    "Connected — MailMind can read your inbox";
+                statusText.textContent = "Connected — MailMind can read your inbox";
                 badge.textContent = "Connected";
-                badge.className =
-                    "font-label-md text-[12px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-700";
+                badge.className = "font-label-md text-[12px] font-bold px-3 py-1 rounded-full bg-green-100 text-green-700";
                 badge.classList.remove("hidden");
                 disconnectBtn.classList.remove("hidden");
                 connectBtn.classList.add("hidden");
+
+                // Update profile card with Gmail info
+                if (data.email) {
+                    document.getElementById("profile-email").textContent = data.email;
+                    const name = data.email.split("@")[0];
+                    document.getElementById("profile-name").textContent = name.charAt(0).toUpperCase() + name.slice(1);
+                    document.getElementById("profile-connection").textContent = "Connected via Gmail";
+                }
             } else {
-                statusText.textContent =
-                    "Not connected — click Connect Gmail to authorise";
+                statusText.textContent = "Not connected — click Connect Gmail to authorise";
                 badge.textContent = "Not connected";
-                badge.className =
-                    "font-label-md text-[12px] font-bold px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant";
+                badge.className = "font-label-md text-[12px] font-bold px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant";
                 badge.classList.remove("hidden");
                 connectBtn.classList.remove("hidden");
                 disconnectBtn.classList.add("hidden");
             }
         } catch (err) {
             console.error("Could not reach /api/auth/status:", err);
-            document.getElementById("gmail-status-text").textContent =
-                "Could not check status — is the server running?";
+            document.getElementById("gmail-status-text").textContent = "Could not check status — is the server running?";
         }
     }
 
-    // Called when the user clicks the Disconnect button
     async function disconnectGmail() {
         try {
             const res = await fetch("/api/auth/logout");
             const data = await res.json();
             if (data.success) {
-                checkGmailStatus(); // Refresh the card UI
+                checkGmailStatus();
             } else {
                 alert(data.message || "Disconnect failed.");
             }
@@ -399,7 +593,14 @@
         }
     }
 
+    // --- Populate timezone ---
+    try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        document.getElementById("profile-timezone").textContent = tz;
+    } catch(e) {}
+
     // Run on page load
+    loadSettings();
     checkGmailStatus();
 </script>
 {% endblock %}

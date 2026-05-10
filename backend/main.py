@@ -15,12 +15,14 @@ from fastapi.staticfiles import StaticFiles
 from routes import (
     analytics,
     auth,
+    crafter,
     dev,
     emails,
     meetings,
     orders,
     pages,
     pipeline,
+    settings,
     todos,
 )
 
@@ -74,6 +76,8 @@ def create_app():
     app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])
     app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
     app.include_router(dev.router, prefix="/api/dev", tags=["Dev"])
+    app.include_router(settings.router, prefix="/api/settings", tags=["Settings"])
+    app.include_router(crafter.router, prefix="/api/crafter", tags=["Crafter"])
 
     # --- Startup: initialize the database ---
     # This runs initialize_database() the moment the app starts.

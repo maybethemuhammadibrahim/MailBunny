@@ -40,25 +40,35 @@ block header_title %}Crafter{% endblock %} {% block content %}
         </div>
         <!-- Editor Body -->
         <div class="flex-1 relative flex flex-col">
+            <!-- Formatting Toolbar -->
             <div
-                class="flex items-center gap-2 mb-4 p-2 bg-surface-container-low rounded-lg border border-surface-variant"
+                class="flex items-center gap-1 mb-4 p-2 bg-surface-container-low rounded-lg border border-surface-variant"
             >
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('bold')"
+                    id="btn-bold"
+                    title="Bold (Ctrl+B)"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >format_bold</span
                     >
                 </button>
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('italic')"
+                    id="btn-italic"
+                    title="Italic (Ctrl+I)"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >format_italic</span
                     >
                 </button>
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('underline')"
+                    id="btn-underline"
+                    title="Underline (Ctrl+U)"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >format_underlined</span
@@ -66,14 +76,20 @@ block header_title %}Crafter{% endblock %} {% block content %}
                 </button>
                 <div class="w-px h-6 bg-outline-variant mx-1"></div>
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('insertUnorderedList')"
+                    id="btn-ul"
+                    title="Bullet List"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >format_list_bulleted</span
                     >
                 </button>
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('insertOrderedList')"
+                    id="btn-ol"
+                    title="Numbered List"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >format_list_numbered</span
@@ -81,21 +97,37 @@ block header_title %}Crafter{% endblock %} {% block content %}
                 </button>
                 <div class="w-px h-6 bg-outline-variant mx-1"></div>
                 <button
-                    class="p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
+                    onclick="formatText('createLink')"
+                    id="btn-link"
+                    title="Insert Link"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors"
                 >
                     <span class="material-symbols-outlined text-[20px]"
                         >link</span
                     >
                 </button>
+                <button
+                    onclick="formatText('removeFormat')"
+                    title="Clear Formatting"
+                    class="fmt-btn p-1.5 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface rounded transition-colors ml-auto"
+                >
+                    <span class="material-symbols-outlined text-[20px]"
+                        >format_clear</span
+                    >
+                </button>
             </div>
-            <textarea
+            <!-- Rich Text Editor (contentEditable) -->
+            <div
                 id="crafter-body"
-                class="flex-1 w-full resize-none border-none focus:ring-0 p-0 text-body-lg text-on-surface bg-transparent leading-relaxed"
-                placeholder="Start typing or use AI to craft your message..."
-            ></textarea>
+                contenteditable="true"
+                class="flex-1 w-full border border-outline-variant rounded-lg p-4 text-body-lg text-on-surface bg-surface-container-lowest leading-relaxed overflow-y-auto focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all min-h-[200px]"
+                style="white-space: pre-wrap"
+                data-placeholder="Start typing or use AI to craft your message..."
+            ></div>
             <!-- Floating AI Action -->
             <div class="absolute bottom-4 right-4">
                 <button
+                    onclick="generateDraft()"
                     class="bg-primary text-on-primary px-6 py-3 rounded-full shadow-lg hover:bg-surface-tint transition-all active:scale-95 flex items-center gap-2 font-label-md text-label-md tracking-wide"
                 >
                     <span
@@ -113,6 +145,7 @@ block header_title %}Crafter{% endblock %} {% block content %}
             class="mt-6 pt-4 border-t border-surface-variant flex justify-between items-center"
         >
             <button
+                onclick="discardCrafter()"
                 class="text-on-surface-variant hover:text-error transition-colors flex items-center gap-1 text-sm font-label-md"
             >
                 <span class="material-symbols-outlined text-[18px]"
@@ -122,6 +155,7 @@ block header_title %}Crafter{% endblock %} {% block content %}
             </button>
             <div class="flex gap-3">
                 <button
+                    onclick="saveCrafterDraft()"
                     class="px-4 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-container-low transition-colors font-label-md text-label-md"
                 >
                     Save Draft
@@ -168,10 +202,13 @@ block header_title %}Crafter{% endblock %} {% block content %}
                 for you.
             </p>
             <textarea
+                id="ai-prompt"
                 class="w-full bg-surface-container-lowest border border-outline-variant rounded-lg p-3 text-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none h-24 mb-3 text-on-surface"
                 placeholder="e.g., Ask Alex for an update on the Q3 report and suggest a meeting next Tuesday."
             ></textarea>
             <button
+                id="generate-btn"
+                onclick="generateDraft()"
                 class="w-full bg-primary text-on-primary py-2.5 rounded-lg font-label-md text-label-md hover:bg-surface-tint transition-colors flex justify-center items-center gap-2"
             >
                 Generate Draft
@@ -189,27 +226,11 @@ block header_title %}Crafter{% endblock %} {% block content %}
             >
                 Tone &amp; Style
             </h4>
-            <div class="flex flex-wrap gap-2">
-                <button
-                    class="px-3 py-1.5 rounded-full border border-primary bg-primary/10 text-primary font-body-md text-body-md hover:bg-primary/20 transition-colors"
-                >
-                    Professional
-                </button>
-                <button
-                    class="px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors"
-                >
-                    Casual
-                </button>
-                <button
-                    class="px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors"
-                >
-                    Direct
-                </button>
-                <button
-                    class="px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors"
-                >
-                    Persuasive
-                </button>
+            <div id="tone-buttons" class="flex flex-wrap gap-2">
+                <button onclick="setTone('professional')" class="tone-btn px-3 py-1.5 rounded-full border border-primary bg-primary/10 text-primary font-body-md text-body-md hover:bg-primary/20 transition-colors" data-tone="professional">Professional</button>
+                <button onclick="setTone('casual')" class="tone-btn px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors" data-tone="casual">Casual</button>
+                <button onclick="setTone('direct')" class="tone-btn px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors" data-tone="direct">Direct</button>
+                <button onclick="setTone('persuasive')" class="tone-btn px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors" data-tone="persuasive">Persuasive</button>
             </div>
         </div>
         <!-- Quick Templates -->
@@ -222,81 +243,258 @@ block header_title %}Crafter{% endblock %} {% block content %}
                 Quick Prompts
             </h4>
             <div class="flex flex-col gap-2">
-                <button
-                    class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group"
-                >
-                    <span
-                        class="p-2 bg-secondary-fixed text-on-secondary-fixed rounded-lg group-hover:bg-secondary-fixed-dim transition-colors"
-                    >
-                        <span class="material-symbols-outlined text-[18px]"
-                            >replay</span
-                        >
-                    </span>
-                    <div>
-                        <div class="font-body-md font-semibold text-on-surface">
-                            Follow up
-                        </div>
-                        <div class="text-[11px] text-on-surface-variant">
-                            Polite nudge on previous email
-                        </div>
-                    </div>
+                <button onclick="useQuickPrompt('follow_up')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group">
+                    <span class="p-2 bg-secondary-fixed text-on-secondary-fixed rounded-lg group-hover:bg-secondary-fixed-dim transition-colors"><span class="material-symbols-outlined text-[18px]">replay</span></span>
+                    <div><div class="font-body-md font-semibold text-on-surface">Follow up</div><div class="text-[11px] text-on-surface-variant">Polite nudge on previous email</div></div>
                 </button>
-                <button
-                    class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group"
-                >
-                    <span
-                        class="p-2 bg-tertiary-fixed text-on-tertiary-fixed rounded-lg group-hover:bg-tertiary-fixed-dim transition-colors"
-                    >
-                        <span class="material-symbols-outlined text-[18px]"
-                            >calendar_month</span
-                        >
-                    </span>
-                    <div>
-                        <div class="font-body-md font-semibold text-on-surface">
-                            Schedule Meeting
-                        </div>
-                        <div class="text-[11px] text-on-surface-variant">
-                            Propose times to connect
-                        </div>
-                    </div>
+                <button onclick="useQuickPrompt('schedule_meeting')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group">
+                    <span class="p-2 bg-tertiary-fixed text-on-tertiary-fixed rounded-lg group-hover:bg-tertiary-fixed-dim transition-colors"><span class="material-symbols-outlined text-[18px]">calendar_month</span></span>
+                    <div><div class="font-body-md font-semibold text-on-surface">Schedule Meeting</div><div class="text-[11px] text-on-surface-variant">Propose times to connect</div></div>
                 </button>
-                <button
-                    class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group"
-                >
-                    <span
-                        class="p-2 bg-error-container text-on-error-container rounded-lg group-hover:bg-error-container/80 transition-colors"
-                    >
-                        <span class="material-symbols-outlined text-[18px]"
-                            >close</span
-                        >
-                    </span>
-                    <div>
-                        <div class="font-body-md font-semibold text-on-surface">
-                            Polite Decline
-                        </div>
-                        <div class="text-[11px] text-on-surface-variant">
-                            Gracefully say no to an offer
-                        </div>
-                    </div>
+                <button onclick="useQuickPrompt('polite_decline')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group">
+                    <span class="p-2 bg-error-container text-on-error-container rounded-lg group-hover:bg-error-container/80 transition-colors"><span class="material-symbols-outlined text-[18px]">close</span></span>
+                    <div><div class="font-body-md font-semibold text-on-surface">Polite Decline</div><div class="text-[11px] text-on-surface-variant">Gracefully say no to an offer</div></div>
+                </button>
+                <button onclick="useQuickPrompt('thank_you')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group">
+                    <span class="p-2 bg-primary/10 text-primary rounded-lg group-hover:bg-primary/20 transition-colors"><span class="material-symbols-outlined text-[18px]">favorite</span></span>
+                    <div><div class="font-body-md font-semibold text-on-surface">Thank You</div><div class="text-[11px] text-on-surface-variant">Express sincere gratitude</div></div>
+                </button>
+                <button onclick="useQuickPrompt('apology')" class="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-container-low border border-transparent hover:border-outline-variant/30 transition-all text-left w-full group">
+                    <span class="p-2 bg-surface-container-high text-on-surface-variant rounded-lg group-hover:bg-surface-dim transition-colors"><span class="material-symbols-outlined text-[18px]">sentiment_dissatisfied</span></span>
+                    <div><div class="font-body-md font-semibold text-on-surface">Apology</div><div class="text-[11px] text-on-surface-variant">Take responsibility gracefully</div></div>
                 </button>
             </div>
         </div>
     </aside>
 </div>
+
+<!-- Placeholder style for contentEditable -->
+<style>
+    #crafter-body:empty::before {
+        content: attr(data-placeholder);
+        color: var(--color-outline);
+        pointer-events: none;
+    }
+    #crafter-body:focus {
+        outline: none;
+    }
+    #crafter-body ul, #crafter-body ol {
+        padding-left: 1.5rem;
+        margin: 0.5rem 0;
+    }
+    #crafter-body ul { list-style-type: disc; }
+    #crafter-body ol { list-style-type: decimal; }
+</style>
 {% endblock %}
 {% block scripts %}
 <script>
+    // ---------------------------------------------------------------
+    // Crafter page JavaScript — Phase 9 (Full Implementation)
+    // Rich text formatting, AI generation, tone selection, quick
+    // prompts, send, save-draft, and discard.
+    // ---------------------------------------------------------------
+
+    let activeTone = "professional";
+
+    // Quick prompt texts
+    const QUICK_PROMPT_TEXT = {
+        follow_up: "Write a polite follow-up to my previous email. Ask for an update on the matter and offer to help if needed.",
+        schedule_meeting: "Propose a meeting to discuss the topic. Suggest two or three possible time slots and ask for their preference.",
+        polite_decline: "Politely decline the request or invitation. Express gratitude, briefly explain why, and keep the door open for future collaboration.",
+        thank_you: "Write a sincere thank-you email. Acknowledge what the recipient did and express genuine appreciation.",
+        apology: "Write a professional apology email. Take responsibility, explain briefly, and propose a resolution.",
+    };
+
+    // ========================
+    // Rich Text Formatting
+    // ========================
+
+    function formatText(command) {
+        // Focus the editor first so execCommand works
+        const editor = document.getElementById("crafter-body");
+        editor.focus();
+
+        if (command === "createLink") {
+            const url = prompt("Enter URL:", "https://");
+            if (url) {
+                document.execCommand("createLink", false, url);
+            }
+            return;
+        }
+
+        // execCommand applies formatting to the current selection
+        document.execCommand(command, false, null);
+    }
+
+    // Keyboard shortcuts for formatting
+    document.addEventListener("keydown", function(e) {
+        const editor = document.getElementById("crafter-body");
+        if (document.activeElement !== editor) return;
+
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key.toLowerCase()) {
+                case "b":
+                    e.preventDefault();
+                    formatText("bold");
+                    break;
+                case "i":
+                    e.preventDefault();
+                    formatText("italic");
+                    break;
+                case "u":
+                    e.preventDefault();
+                    formatText("underline");
+                    break;
+            }
+        }
+    });
+
+    // Get plain text from the rich editor for API calls
+    function getEditorText() {
+        const editor = document.getElementById("crafter-body");
+        return editor.innerText.trim();
+    }
+
+    // Get HTML content from the editor
+    function getEditorHTML() {
+        const editor = document.getElementById("crafter-body");
+        return editor.innerHTML.trim();
+    }
+
+    // Set content in the editor (as plain text, preserving line breaks)
+    function setEditorContent(text) {
+        const editor = document.getElementById("crafter-body");
+        // Convert newlines to <br> for proper display
+        const html = text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\n/g, "<br>");
+        editor.innerHTML = html;
+    }
+
+    // ========================
+    // Tone Selector
+    // ========================
+
+    function setTone(tone) {
+        activeTone = tone;
+        document.querySelectorAll(".tone-btn").forEach((btn) => {
+            if (btn.dataset.tone === tone) {
+                btn.className = "tone-btn px-3 py-1.5 rounded-full border border-primary bg-primary/10 text-primary font-body-md text-body-md hover:bg-primary/20 transition-colors";
+            } else {
+                btn.className = "tone-btn px-3 py-1.5 rounded-full border border-outline-variant text-on-surface-variant font-body-md text-body-md hover:bg-surface-container-low transition-colors";
+            }
+        });
+    }
+
+    // ========================
+    // Quick Prompts
+    // ========================
+
+    function useQuickPrompt(key) {
+        const textarea = document.getElementById("ai-prompt");
+        if (textarea && QUICK_PROMPT_TEXT[key]) {
+            textarea.value = QUICK_PROMPT_TEXT[key];
+            textarea.focus();
+        }
+    }
+
+    // ========================
+    // AI Draft Generation
+    // ========================
+
+    async function generateDraft() {
+        const promptEl = document.getElementById("ai-prompt");
+        const promptText = promptEl.value.trim();
+        const to = document.getElementById("crafter-to").value.trim();
+        const subject = document.getElementById("crafter-subject").value.trim();
+        const btn = document.getElementById("generate-btn");
+
+        if (!promptText) {
+            setCrafterStatus("Please describe what you want to say in the AI Writer box.", true);
+            promptEl.focus();
+            return;
+        }
+
+        const originalBtn = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">autorenew</span> Generating...';
+        setCrafterStatus("Generating your email with AI...");
+
+        try {
+            const res = await fetch("/api/crafter/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt: promptText,
+                    tone: activeTone,
+                    recipient: to,
+                    subject: subject,
+                }),
+            });
+
+            const data = await res.json();
+            console.log("[Crafter] API response:", data);
+
+            if (data.error) throw new Error(data.error);
+
+            // Get the generated email text
+            const emailText = data.generated_email || data.email || data.body || "";
+
+            if (!emailText) {
+                throw new Error("AI returned an empty response. Please try again.");
+            }
+
+            // Set the content in the rich text editor
+            setEditorContent(emailText);
+
+            // If no subject was entered, use the AI suggestion
+            if (!subject && data.subject_suggestion) {
+                document.getElementById("crafter-subject").value = data.subject_suggestion;
+            }
+
+            // Show quality review feedback from the Review Agent
+            const reviewScore = data.review_score || 0;
+            const reviewFeedback = data.review_feedback || "";
+            const scorePercent = Math.round(reviewScore * 100);
+            let qualityMsg = `✨ Draft generated & reviewed — Quality: ${scorePercent}%`;
+            if (reviewFeedback) {
+                qualityMsg += ` — ${reviewFeedback.substring(0, 100)}`;
+            }
+            setCrafterStatus(qualityMsg);
+        } catch (err) {
+            console.error("[Crafter] Error:", err);
+            setCrafterStatus(err.message || "Failed to generate draft.", true);
+        } finally {
+            btn.innerHTML = originalBtn;
+            btn.disabled = false;
+        }
+    }
+
+    // ========================
+    // Status Helper
+    // ========================
+
     function setCrafterStatus(message, isError = false) {
         const el = document.getElementById("crafter-send-status");
         el.textContent = message;
         el.classList.remove("hidden");
         el.className = `mt-3 text-sm ${isError ? "text-error" : "text-primary"}`;
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            el.classList.add("hidden");
+        }, 5000);
     }
+
+    // ========================
+    // Send Email via Gmail
+    // ========================
 
     async function sendCrafterEmail() {
         const to = document.getElementById("crafter-to").value.trim();
         const subject = document.getElementById("crafter-subject").value.trim();
-        const body = document.getElementById("crafter-body").value.trim();
+        const body = getEditorText();
         const btn = document.getElementById("crafter-send-btn");
         const original = btn.innerHTML;
 
@@ -306,8 +504,7 @@ block header_title %}Crafter{% endblock %} {% block content %}
         }
 
         btn.disabled = true;
-        btn.innerHTML =
-            '<span class="material-symbols-outlined text-[16px] animate-spin">autorenew</span> Sending...';
+        btn.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">autorenew</span> Sending...';
 
         try {
             const res = await fetch("/api/emails/send", {
@@ -316,23 +513,61 @@ block header_title %}Crafter{% endblock %} {% block content %}
                 body: JSON.stringify({ to, subject, body }),
             });
             const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-            if (data.error) {
-                throw new Error(data.error);
-            }
-
-            setCrafterStatus("Email sent successfully.");
-            btn.innerHTML =
-                'Sent <span class="material-symbols-outlined text-[16px]">check</span>';
-            setTimeout(() => {
-                btn.innerHTML = original;
-                btn.disabled = false;
-            }, 1500);
+            setCrafterStatus("Email sent successfully!");
+            btn.innerHTML = 'Sent <span class="material-symbols-outlined text-[16px]">check</span>';
+            setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 2000);
         } catch (err) {
             setCrafterStatus(err.message || "Failed to send email.", true);
             btn.innerHTML = original;
             btn.disabled = false;
         }
+    }
+
+    // ========================
+    // Save Draft to Gmail
+    // ========================
+
+    async function saveCrafterDraft() {
+        const to = document.getElementById("crafter-to").value.trim();
+        const subject = document.getElementById("crafter-subject").value.trim();
+        const body = getEditorText();
+
+        if (!body) {
+            setCrafterStatus("Message body is required to save a draft.", true);
+            return;
+        }
+
+        setCrafterStatus("Saving draft to Gmail...");
+
+        try {
+            const res = await fetch("/api/emails/drafts/save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ to, subject, body }),
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            setCrafterStatus("Draft saved to Gmail!");
+        } catch (err) {
+            setCrafterStatus(err.message || "Failed to save draft.", true);
+        }
+    }
+
+    // ========================
+    // Discard
+    // ========================
+
+    function discardCrafter() {
+        const body = getEditorText();
+        if (body && !confirm("Discard this draft?")) return;
+        document.getElementById("crafter-to").value = "";
+        document.getElementById("crafter-subject").value = "";
+        document.getElementById("crafter-body").innerHTML = "";
+        document.getElementById("ai-prompt").value = "";
+        const status = document.getElementById("crafter-send-status");
+        status.classList.add("hidden");
     }
 </script>
 {% endblock %}

@@ -1040,3 +1040,188 @@ def get_analytics_security():
         "suspicious_senders": suspicious_senders,
         "safe_percent":       safe_percent,
     }
+
+
+# ---------------------------------------------------------------------------
+# Settings helpers — key-value store for user preferences (Phase 11)
+# ---------------------------------------------------------------------------
+
+
+def get_setting(key):
+    """
+    Reads a single setting value by its key from the settings table.
+
+    Args:
+        key (str): the setting key (e.g. 'tone', 'auto_draft')
+
+    Returns:
+        str | None: the value if found, or None if the key doesn't exist
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = cursor.fetchone()
+    connection.close()
+
+    return row["value"] if row else None
+
+
+def set_setting(key, value):
+    """
+    Creates or updates a single setting in the key-value store.
+
+    Uses INSERT OR REPLACE so it works for both new keys and updates.
+
+    Args:
+        key   (str): the setting key
+        value (str): the value to store (always stored as text)
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, str(value)),
+    )
+
+    connection.commit()
+    connection.close()
+    print(f"[DB] Setting saved: {key} = {value}")
+
+
+def get_all_settings():
+    """
+    Returns every row in the settings table as a flat dictionary.
+
+    Returns:
+        dict: {key: value} for every setting stored in the database
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT key, value FROM settings")
+    rows = cursor.fetchall()
+    connection.close()
+
+    return {row["key"]: row["value"] for row in rows}
+
+
+def delete_all_data():
+    """
+    Wipes all user data from the database — emails, todos, meetings,
+    orders, and processed_emails. Settings are intentionally preserved
+    so user preferences survive the reset.
+
+    This is the 'nuclear option' called from DELETE /api/settings/data.
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    # Delete from every data table but NOT the settings table
+    tables_to_clear = [
+        "processed_emails",
+        "emails",
+        "todos",
+        "meetings",
+        "orders",
+    ]
+
+    for table in tables_to_clear:
+        cursor.execute(f"DELETE FROM {table}")
+        print(f"[DB] Cleared table: {table}")
+
+    connection.commit()
+    connection.close()
+    print("[DB] All user data deleted. Settings preserved.")
+
+
+# ---------------------------------------------------------------------------
+# Thread history helper — enables conversation memory for multi-agent drafter
+# ---------------------------------------------------------------------------
+
+
+def get_thread_history(thread_id, exclude_email_id=None, limit=5):
+    """
+    Fetches previous emails in the same Gmail thread for conversation context.
+
+    The drafter uses this to understand the ongoing conversation so it can
+    write replies that feel continuous and aware of previous exchanges —
+    this is the 'memory' component of the multi-agent system.
+
+    Args:
+        thread_id        (str):       Gmail thread ID to search
+        exclude_email_id (str|None):  email ID to exclude (the current email)
+        limit            (int):       max number of previous messages to return
+
+    Returns:
+        list[dict]: previous emails in chronological order (oldest first)
+    """
+    if not thread_id:
+        return []
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    if exclude_email_id:
+        cursor.execute(
+            """SELECT email_id, subject, sender, sender_email, body_plain, timestamp
+               FROM emails
+               WHERE thread_id = ? AND email_id != ?
+               ORDER BY timestamp ASC
+               LIMIT ?""",
+            (thread_id, exclude_email_id, limit),
+        )
+    else:
+        cursor.execute(
+            """SELECT email_id, subject, sender, sender_email, body_plain, timestamp
+               FROM emails
+               WHERE thread_id = ?
+               ORDER BY timestamp ASC
+               LIMIT ?""",
+            (thread_id, limit),
+        )
+
+    rows = cursor.fetchall()
+    connection.close()
+
+    return [
+        {
+            "email_id": row["email_id"],
+            "subject": row["subject"],
+            "sender": row["sender"],
+            "sender_email": row["sender_email"],
+            "body_plain": row["body_plain"][:500],  # Cap for token efficiency
+            "timestamp": row["timestamp"],
+        }
+        for row in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# AI settings helper — reads stored preferences for pipeline integration
+# ---------------------------------------------------------------------------
+
+
+def get_ai_settings():
+    """
+    Returns AI-related settings as a dict with safe defaults.
+
+    Used by the drafter and crafter pipelines to incorporate user preferences
+    (tone, vocabulary, auto-draft) into their prompts. This bridges the gap
+    between the Settings page and the AI generation pipelines.
+
+    Returns:
+        dict: {tone, auto_draft, vocabulary} with defaults if not set
+    """
+    settings = get_all_settings()
+
+    return {
+        "tone": settings.get("tone", "professional"),
+        "auto_draft": settings.get("auto_draft", "true") == "true",
+        "vocabulary": [
+            trait.strip()
+            for trait in settings.get("vocabulary", "Concise,Action-oriented").split(",")
+            if trait.strip()
+        ],
+    }

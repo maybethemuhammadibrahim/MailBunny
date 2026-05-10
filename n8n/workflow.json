@@ -1,9 +1,410 @@
 {
-  "name": "MailMind — Email Processing Workflow",
-  "nodes": [],
-  "connections": {},
+  "name": "MailMind — Multi-Agent Email Processing Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "minutes", "minutesInterval": 15 }]
+        }
+      },
+      "id": "node-trigger",
+      "name": "Poll Every 15 Min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300],
+      "notes": "Triggers the workflow every 15 minutes to check for new emails."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/emails/sync",
+        "method": "POST",
+        "options": {}
+      },
+      "id": "node-sync",
+      "name": "Sync Emails from Gmail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "notes": "Calls the FastAPI sync endpoint which fetches recent Gmail messages and saves them to SQLite."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out emails that already have AI results cached (classification !== null)\n// Only pass through emails that need processing\nconst emails = $input.all();\nconst unprocessed = [];\n\nfor (const item of emails) {\n  const email = item.json;\n  // If classification is null/undefined, this email hasn't been processed yet\n  if (!email.classification) {\n    unprocessed.push({ json: email });\n  }\n}\n\n// If no unprocessed emails, return empty to stop the workflow\nif (unprocessed.length === 0) {\n  return [{ json: { message: 'No new emails to process', count: 0 } }];\n}\n\nreturn unprocessed;"
+      },
+      "id": "node-filter",
+      "name": "Filter Unprocessed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300],
+      "notes": "Filters the synced email list to only include emails that haven't been through the AI pipeline yet."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/sentiment",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "body", "value": "={{ $json.body_plain }}" },
+            { "name": "sender", "value": "={{ $json.sender_email }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-sentiment",
+      "name": "Sentiment Analysis Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 300],
+      "notes": "AGENT 1: Analyzes the emotional tone of the incoming email. Determines if the sender is positive, negative, angry, or urgent. Flags critical emails that need human attention."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_critical }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-critical",
+      "name": "Is Critical Sentiment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1100, 300],
+      "notes": "Routes emails with critical sentiment (angry complaints, legal threats, emergencies) to the human notification branch. Non-critical emails continue to the AI pipeline."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format a critical email alert for the user\nconst sentiment = $json;\nconst email = $('Filter Unprocessed').first().json;\n\nconst alert = {\n  type: 'CRITICAL_EMAIL_ALERT',\n  subject: email.subject || 'Unknown subject',\n  sender: email.sender_email || email.sender || 'Unknown',\n  sentiment: sentiment.sentiment || 'negative',\n  intensity: sentiment.intensity || 0.8,\n  reason: sentiment.alert_reason || 'Flagged as requiring human attention',\n  message: `⚠️ CRITICAL EMAIL from ${email.sender || 'unknown sender'}\\nSubject: ${email.subject}\\nSentiment: ${sentiment.sentiment} (${Math.round((sentiment.intensity || 0.8) * 100)}% intensity)\\nReason: ${sentiment.alert_reason || 'Requires personal response'}\\n\\nThis email has been flagged for your personal attention. Please review and respond manually.`\n};\n\nreturn [{ json: alert }];"
+      },
+      "id": "node-alert-format",
+      "name": "Format Critical Alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 160],
+      "notes": "Formats a human-readable alert message for critical emails. Connect a Slack, Discord, or email notification node after this to receive alerts."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/process-email",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email_id", "value": "={{ $('Filter Unprocessed').first().json.id }}" },
+            { "name": "subject", "value": "={{ $('Filter Unprocessed').first().json.subject }}" },
+            { "name": "sender", "value": "={{ $('Filter Unprocessed').first().json.sender }}" },
+            { "name": "sender_email", "value": "={{ $('Filter Unprocessed').first().json.sender_email }}" },
+            { "name": "body_plain", "value": "={{ $('Filter Unprocessed').first().json.body_plain }}" },
+            { "name": "thread_id", "value": "={{ $('Filter Unprocessed').first().json.thread_id }}" },
+            { "name": "timestamp", "value": "={{ $('Filter Unprocessed').first().json.timestamp }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-process",
+      "name": "Run Multi-Agent Pipeline",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 440],
+      "notes": "AGENTS 2-5: Runs the full multi-agent pipeline on the FastAPI backend:\n1. Sentiment Analysis (already done, but re-run with full context)\n2. Classification (categorize + prioritize)\n3. Summarization (key facts + action items)\n4. Draft Reply (with settings, thread memory, quality review)\n5. Entity Extraction (todos, meetings, orders)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.classification.category }}",
+              "rightValue": "spam",
+              "operator": { "type": "string", "operation": "equals" }
+            },
+            {
+              "leftValue": "={{ $json.classification.category }}",
+              "rightValue": "newsletter",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-spam",
+      "name": "Is Spam or Newsletter?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 440],
+      "notes": "Routes spam and newsletter emails to the archive branch. All other emails continue to quality check and extraction."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/emails/mark-processed",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email_id", "value": "={{ $json.email_id }}" },
+            { "name": "subject", "value": "={{ $json.subject || '' }}" },
+            { "name": "sender", "value": "={{ $json.sender || '' }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-archive",
+      "name": "Archive (Mark Processed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 300],
+      "notes": "Marks spam/newsletter emails as processed without creating drafts."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Quality gate: check if the AI draft passed the quality review\nconst data = $json;\nconst reviewScore = data.draft?.review_score || 0;\nconst approved = reviewScore >= 0.7;\nconst feedback = data.draft?.review_feedback || 'No review feedback';\n\nconst result = {\n  ...data,\n  quality_approved: approved,\n  quality_score: reviewScore,\n  quality_feedback: feedback\n};\n\nconsole.log(`Quality Review: score=${reviewScore}, approved=${approved}`);\nreturn [{ json: result }];"
+      },
+      "id": "node-quality-check",
+      "name": "Quality Review Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 560],
+      "notes": "QUALITY GATE: Checks the review_score from the Quality Review Agent. Drafts with score >= 0.7 proceed to Gmail draft creation. Low-quality drafts are logged but still proceed (the reviewer already improved them)."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.classification.is_order_email }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-order",
+      "name": "Is Order Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 560],
+      "notes": "Checks if the classifier flagged this as an order/purchase email."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/orders/extract",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "body", "value": "={{ $json.body }}" },
+            { "name": "sender", "value": "={{ $json.sender }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-extract-order",
+      "name": "Extract Order Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2200, 500],
+      "notes": "Extracts structured order data (retailer, tracking, price, etc.) from the email."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.classification.priority_score }}",
+              "rightValue": 8,
+              "operator": { "type": "number", "operation": "gte" }
+            }
+          ]
+        }
+      },
+      "id": "node-if-priority",
+      "name": "Priority >= 8?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 660],
+      "notes": "High-priority emails (score 8+) get a Gmail draft created automatically."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/emails/drafts/save",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "to", "value": "={{ $json.sender_email }}" },
+            { "name": "subject", "value": "[AI Draft] Re: {{ $json.subject }}" },
+            { "name": "body", "value": "={{ $json.draft.draft_reply }}" },
+            { "name": "thread_id", "value": "={{ $json.thread_id }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-save-draft",
+      "name": "Save Gmail Draft",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, 600],
+      "notes": "Creates a Gmail draft with [AI Draft] prefix for high-priority emails so the user can review before sending."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/emails/mark-processed",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email_id", "value": "={{ $json.email_id || $json.id }}" },
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "sender", "value": "={{ $json.sender }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-mark-done",
+      "name": "Mark Processed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 660],
+      "notes": "Final step — records this email as fully processed in SQLite to prevent duplicate processing."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 7 * * *" }]
+        }
+      },
+      "id": "node-digest-trigger",
+      "name": "Daily 7AM Cron",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 900],
+      "notes": "Triggers the daily digest workflow at 7:00 AM every day."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/analytics/overview",
+        "method": "GET",
+        "options": {}
+      },
+      "id": "node-digest-analytics",
+      "name": "Fetch Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 900],
+      "notes": "Gets today's email analytics from the FastAPI backend."
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/todos",
+        "method": "GET",
+        "options": {}
+      },
+      "id": "node-digest-todos",
+      "name": "Fetch Pending Todos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 900],
+      "notes": "Gets all pending (incomplete) to-do items."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format a daily digest message from analytics + todos\nconst analytics = $('Fetch Analytics').first().json;\nconst todoItems = $('Fetch Pending Todos').all();\n\nconst totalToday = analytics.total_today || 0;\nconst spamCount = analytics.spam_count || 0;\nconst pendingTasks = todoItems.length;\n\nlet digest = `📧 MailMind Daily Digest\\n`;\ndigest += `========================\\n`;\ndigest += `Emails processed today: ${totalToday}\\n`;\ndigest += `Spam blocked: ${spamCount}\\n`;\ndigest += `Pending tasks: ${pendingTasks}\\n\\n`;\n\nif (pendingTasks > 0) {\n  digest += `📋 Your Tasks:\\n`;\n  for (const item of todoItems.slice(0, 5)) {\n    const todo = item.json;\n    digest += `  • ${todo.title}`;\n    if (todo.due_date) digest += ` (due: ${todo.due_date})`;\n    digest += `\\n`;\n  }\n  if (pendingTasks > 5) {\n    digest += `  ... and ${pendingTasks - 5} more\\n`;\n  }\n}\n\nreturn [{ json: { digest, totalToday, spamCount, pendingTasks } }];"
+      },
+      "id": "node-digest-format",
+      "name": "Format Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 900],
+      "notes": "Formats the analytics and todos data into a human-readable daily digest message. To send via Slack or email, add a notification node after this one."
+    },
+    {
+      "parameters": {},
+      "id": "node-sticky-main",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [180, 80],
+      "parameters_extra": {
+        "content": "## MailMind — Multi-Agent Email Processing Pipeline\n\n**Architecture (inspired by Brendan Jowett's n8n AI Agent tutorial):**\n\n**Agent 1 — Sentiment Analysis:** Evaluates incoming email emotion (positive/negative/angry/urgent). Critical emails bypass automation and trigger alerts.\n\n**Agent 2 — Classification + Summarization:** Categorizes email (urgent/action-required/meeting/order/spam/fyi) and extracts key facts.\n\n**Agent 3 — Draft Reply:** Generates tone-matched, settings-aware reply with thread memory (conversation context).\n\n**Agent 4 — Quality Review:** Reviews the draft for brand alignment, tone accuracy, and completeness. Rewrites if quality score < 0.7.\n\n### Credentials Setup\n1. The FastAPI backend must be running at http://localhost:8000\n2. Gmail OAuth must be configured (visit /settings to connect)\n3. No additional n8n credentials needed — all API calls go through FastAPI\n4. To enable alerts: add a Slack/Discord/Email node after 'Format Critical Alert'"
+      }
+    }
+  ],
+  "connections": {
+    "Poll Every 15 Min": {
+      "main": [[{ "node": "Sync Emails from Gmail", "type": "main", "index": 0 }]]
+    },
+    "Sync Emails from Gmail": {
+      "main": [[{ "node": "Filter Unprocessed", "type": "main", "index": 0 }]]
+    },
+    "Filter Unprocessed": {
+      "main": [[{ "node": "Sentiment Analysis Agent", "type": "main", "index": 0 }]]
+    },
+    "Sentiment Analysis Agent": {
+      "main": [[{ "node": "Is Critical Sentiment?", "type": "main", "index": 0 }]]
+    },
+    "Is Critical Sentiment?": {
+      "main": [
+        [{ "node": "Format Critical Alert", "type": "main", "index": 0 }],
+        [{ "node": "Run Multi-Agent Pipeline", "type": "main", "index": 0 }]
+      ]
+    },
+    "Format Critical Alert": {
+      "main": [[{ "node": "Run Multi-Agent Pipeline", "type": "main", "index": 0 }]]
+    },
+    "Run Multi-Agent Pipeline": {
+      "main": [[{ "node": "Is Spam or Newsletter?", "type": "main", "index": 0 }]]
+    },
+    "Is Spam or Newsletter?": {
+      "main": [
+        [{ "node": "Archive (Mark Processed)", "type": "main", "index": 0 }],
+        [{ "node": "Quality Review Gate", "type": "main", "index": 0 }]
+      ]
+    },
+    "Quality Review Gate": {
+      "main": [[{ "node": "Is Order Email?", "type": "main", "index": 0 }]]
+    },
+    "Is Order Email?": {
+      "main": [
+        [{ "node": "Extract Order Data", "type": "main", "index": 0 }],
+        [{ "node": "Priority >= 8?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Order Data": {
+      "main": [[{ "node": "Priority >= 8?", "type": "main", "index": 0 }]]
+    },
+    "Priority >= 8?": {
+      "main": [
+        [{ "node": "Save Gmail Draft", "type": "main", "index": 0 }],
+        [{ "node": "Mark Processed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Save Gmail Draft": {
+      "main": [[{ "node": "Mark Processed", "type": "main", "index": 0 }]]
+    },
+    "Daily 7AM Cron": {
+      "main": [[{ "node": "Fetch Analytics", "type": "main", "index": 0 }]]
+    },
+    "Fetch Analytics": {
+      "main": [[{ "node": "Fetch Pending Todos", "type": "main", "index": 0 }]]
+    },
+    "Fetch Pending Todos": {
+      "main": [[{ "node": "Format Digest", "type": "main", "index": 0 }]]
+    }
+  },
   "active": false,
-  "settings": {},
-  "tags": [],
-  "notes": "Placeholder — will be populated in Phase 12 with Gmail trigger, AI pipeline, and notification nodes."
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    { "name": "MailMind" },
+    { "name": "Multi-Agent AI" },
+    { "name": "Phase 12" }
+  ]
 }

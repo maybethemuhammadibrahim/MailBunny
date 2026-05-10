@@ -1,8 +1,12 @@
 # backend/routes/pipeline.py
 # ---------------------------------------------------------------
-# FastAPI router exposing the AI pipeline (classify, summarize,
-# draft) as REST endpoints, plus a single /process-email route
-# that runs all three stages in sequence.
+# FastAPI router exposing the multi-agent AI pipeline as REST
+# endpoints. The /process-email endpoint runs the full sequence:
+#   1. Sentiment Analysis (understand sender's mood)
+#   2. Classification (categorize the email)
+#   3. Summarization (extract key facts)
+#   4. Draft Reply (with settings, memory, and quality review)
+#   5. Entity Extraction (todos, meetings, orders)
 # ---------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
@@ -28,6 +32,7 @@ from pipeline.classifier import classify_email
 from pipeline.drafter import draft_reply
 from pipeline.meeting_extractor import extract_meetings
 from pipeline.order_extractor import extract_order
+from pipeline.sentiment import analyze_sentiment
 from pipeline.summarizer import summarize_email
 from pipeline.todo_extractor import extract_todos
 from pydantic import BaseModel
@@ -64,6 +69,15 @@ class DraftRequest(BaseModel):
     classification: dict
     summary: dict
     email_id: str | None = None
+    thread_id: str = ""
+
+
+class SentimentRequest(BaseModel):
+    """Fields required to analyze email sentiment."""
+
+    subject: str
+    body: str
+    sender: str
 
 
 class ProcessEmailRequest(BaseModel):
@@ -81,6 +95,25 @@ class ProcessEmailRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.post("/sentiment")
+def sentiment(req: SentimentRequest):
+    """
+    Analyzes the emotional sentiment of an email.
+
+    This is the first step in the multi-agent pipeline — understanding
+    the sender's mood before generating a response ensures the reply
+    is appropriately empathetic and tone-matched.
+
+    Args:
+        req (SentimentRequest): subject, body, sender
+
+    Returns:
+        dict: sentiment, intensity, is_critical, alert_reason, recommended_tone
+    """
+    print(f"[Route /sentiment] subject='{req.subject[:60]}'")
+    return analyze_sentiment(req.subject, req.body, req.sender)
 
 
 @router.post("/classify")
@@ -133,20 +166,30 @@ def summarize(req: SummarizeRequest):
 @router.post("/draft")
 def draft(req: DraftRequest):
     """
-    Generates a professional email reply draft.
+    Generates a professional email reply draft using the multi-agent pipeline.
 
-    Expects pre-computed classification and summary dicts so the model
-    has full context (urgency, tone, required actions) before composing.
+    The draft now goes through:
+    1. Settings-aware prompt building (tone + vocabulary from user prefs)
+    2. Thread memory injection (previous conversation context)
+    3. Quality Review Agent check
 
     Args:
         req (DraftRequest): validated request -- subject, body,
                             classification dict, summary dict
 
     Returns:
-        dict: draft_reply, confidence_score, suggested_subject
+        dict: draft_reply, confidence_score, suggested_subject,
+              review_score, review_feedback
     """
     print(f"[Route /draft] subject='{req.subject[:60]}'")
-    result = draft_reply(req.subject, req.body, req.classification, req.summary)
+    result = draft_reply(
+        req.subject,
+        req.body,
+        req.classification,
+        req.summary,
+        thread_id=req.thread_id,
+        email_id=req.email_id or "",
+    )
 
     # If email_id is provided, persist regenerate results for cache reuse.
     if req.email_id:
@@ -163,26 +206,52 @@ def draft(req: DraftRequest):
 @router.post("/process-email")
 def process_email(req: ProcessEmailRequest):
     """
-    Runs classify, summarize, draft, todo extraction, and meeting
-    extraction in sequence for one email.
+    Runs the full multi-agent pipeline for one email:
+      1. Sentiment Analysis — understand sender's emotional state
+      2. Classification — categorize and prioritize
+      3. Summarization — extract key facts and action items
+      4. Draft Reply — with settings, thread memory, and quality review
+      5. Entity Extraction — todos, meetings, orders
 
-    Skips mark_processed if the email_id already exists in the database.
-    The pipeline always executes so callers receive fresh AI results.
+    The sentiment data flows into the drafter so replies are empathetic
+    and tone-appropriate. The quality review agent ensures every draft
+    meets a minimum quality bar before being returned.
 
     Args:
         req (ProcessEmailRequest): validated request with all email fields
 
     Returns:
-          dict: email_id, classification, summary, draft, extracted entities,
-              already_processed
+        dict: email_id, sentiment, classification, summary, draft,
+              extracted entities, already_processed
     """
     print(
         f"[Route /process-email] email_id={req.email_id}, subject='{req.subject[:60]}'"
     )
     already = is_processed(req.email_id)
+
+    # Step 1: Sentiment Analysis (new multi-agent step)
+    sentiment_data = analyze_sentiment(req.subject, req.body_plain, req.sender_email)
+    print(
+        f"[Route /process-email] Sentiment: {sentiment_data.get('sentiment')}, "
+        f"critical: {sentiment_data.get('is_critical')}"
+    )
+
+    # Step 2: Classification
     classification = classify_email(req.subject, req.sender_email, req.body_plain)
+
+    # Step 3: Summarization
     summary = summarize_email(req.subject, req.body_plain)
-    draft = draft_reply(req.subject, req.body_plain, classification, summary)
+
+    # Step 4: Multi-agent Draft (with settings, sentiment, thread memory, review)
+    draft = draft_reply(
+        req.subject,
+        req.body_plain,
+        classification,
+        summary,
+        sentiment=sentiment_data,
+        thread_id=req.thread_id,
+        email_id=req.email_id,
+    )
 
     saved_todos = []
     saved_meetings = []
@@ -257,8 +326,10 @@ def process_email(req: ProcessEmailRequest):
             classification.get("priority_score"),
             classification.get("is_spam", False),
         )
+
     return {
         "email_id": req.email_id,
+        "sentiment": sentiment_data,
         "classification": classification,
         "summary": summary,
         "draft": draft,

@@ -25,7 +25,7 @@ def get_client():
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def call_gemini(prompt: str, system: str, model: str = None) -> dict:
+def call_gemini(prompt: str, system: str, model: str = None, temperature: float = None) -> dict:
     """
     Makes a single JSON-mode Gemini call with one automatic retry.
 
@@ -35,9 +35,13 @@ def call_gemini(prompt: str, system: str, model: str = None) -> dict:
     we wait 2 seconds and try once more before raising.
 
     Args:
-        prompt (str): the user-facing message (email content, etc.)
-        system (str): the system instruction that shapes the output
-        model  (str): override the default model (uses AI_MODEL_FAST)
+        prompt      (str):   the user-facing message (email content, etc.)
+        system      (str):   the system instruction that shapes the output
+        model       (str):   override the default model (uses AI_MODEL_FAST)
+        temperature (float): controls randomness/creativity (0.0=deterministic,
+                             1.0=very creative). Higher values produce more
+                             natural, human-sounding text. Default None lets
+                             the model use its own default (~0.4).
 
     Returns:
         dict: parsed JSON from Gemini's response
@@ -48,13 +52,22 @@ def call_gemini(prompt: str, system: str, model: str = None) -> dict:
     model = model or AI_MODEL_FAST
     client = get_client()
 
-    config = types.GenerateContentConfig(
-        system_instruction=system,
+    # Build the generation config — optionally include temperature
+    # Higher temperature = more creative, varied, human-like language
+    config_kwargs = {
+        "system_instruction": system,
         # Forces the model to return well-formed JSON every time
-        response_mime_type="application/json",
-    )
+        "response_mime_type": "application/json",
+    }
+    if temperature is not None:
+        config_kwargs["temperature"] = temperature
 
-    for attempt in range(2):
+    config = types.GenerateContentConfig(**config_kwargs)
+
+    # 3 attempts with increasing backoff — handles rate limits on free tier
+    delays = [2, 12, 20]
+
+    for attempt in range(3):
         try:
             response = client.models.generate_content(
                 model=model,
@@ -64,11 +77,17 @@ def call_gemini(prompt: str, system: str, model: str = None) -> dict:
             return json.loads(response.text)
 
         except Exception as exc:
-            if attempt == 0:
-                print(f"[Gemini] Attempt 1 failed ({exc}). Retrying in 2s…")
-                time.sleep(2)
+            error_str = str(exc)
+            is_rate_limit = "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
+
+            if attempt < 2:
+                wait = delays[attempt]
+                if is_rate_limit:
+                    wait = max(wait, 12)  # Google says retry in ~11s
+                print(f"[Gemini] Attempt {attempt+1} failed ({error_str[:80]}). Retrying in {wait}s…")
+                time.sleep(wait)
             else:
-                print(f"[Gemini] Both attempts failed: {exc}")
+                print(f"[Gemini] All 3 attempts failed: {error_str[:120]}")
                 raise
 
 
@@ -79,5 +98,14 @@ def call_fast(prompt: str, system: str) -> dict:
 
 
 def call_draft(prompt: str, system: str) -> dict:
-    """Calls the draft model — same by default, swap for gemini-1.5-pro if needed."""
-    return call_gemini(prompt, system, model=AI_MODEL_DRAFT)
+    """Calls the draft model with high temperature for natural, human-like text.
+    Temperature 0.9 ensures the output sounds warm and conversational,
+    not robotic or formulaic."""
+    return call_gemini(prompt, system, model=AI_MODEL_DRAFT, temperature=0.9)
+
+
+def call_review(prompt: str, system: str) -> dict:
+    """Calls the fast model with LOW temperature for consistent, analytical
+    review output. Temperature 0.2 keeps reviews factual and reproducible —
+    we don't want creative freedom when grading quality."""
+    return call_gemini(prompt, system, model=AI_MODEL_FAST, temperature=0.2)

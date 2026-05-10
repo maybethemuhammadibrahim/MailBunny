@@ -188,22 +188,57 @@ def auth_status():
     Checks whether the user has a valid Gmail connection.
     Used by the settings page to show 'Connected' or 'Connect Gmail'.
 
-    A token.json file present means the user completed OAuth at some point.
-    The actual token validity is checked (and refreshed if needed) when
-    emails are fetched.
+    If connected, also returns the user's Gmail email address by reading
+    the saved token and making a lightweight Gmail profile request.
 
     Returns:
-        dict: {"connected": bool} plus a hint if not connected
+        dict: {"connected": bool, "email": str | None}
     """
-    if os.path.exists(TOKEN_PATH):
-        print("[AUTH] Gmail connected — token.json exists.")
-        return {"connected": True}
+    if not os.path.exists(TOKEN_PATH):
+        print("[AUTH] Gmail not connected — token.json missing.")
+        return {
+            "connected": False,
+            "email": None,
+            "hint": "Visit /api/auth/login to connect your Gmail account.",
+        }
 
-    print("[AUTH] Gmail not connected — token.json missing.")
-    return {
-        "connected": False,
-        "hint": "Visit /api/auth/login to connect your Gmail account.",
-    }
+    print("[AUTH] Gmail connected — token.json exists.")
+
+    # Try to get the user's email from the token
+    email = None
+    try:
+        with open(TOKEN_PATH, "r") as f:
+            token_data = json.load(f)
+
+        # Build credentials and get Gmail profile
+        from google.auth.transport.requests import Request
+        from google.oauth2.credentials import Credentials
+        from googleapiclient.discovery import build
+
+        creds = Credentials(
+            token=token_data.get("token"),
+            refresh_token=token_data.get("refresh_token"),
+            token_uri=token_data.get("token_uri"),
+            client_id=token_data.get("client_id"),
+            client_secret=token_data.get("client_secret"),
+            scopes=token_data.get("scopes"),
+        )
+
+        # Refresh if expired
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            token_data["token"] = creds.token
+            with open(TOKEN_PATH, "w") as f:
+                json.dump(token_data, f, indent=2)
+
+        service = build("gmail", "v1", credentials=creds)
+        profile = service.users().getProfile(userId="me").execute()
+        email = profile.get("emailAddress", None)
+        print(f"[AUTH] Gmail profile email: {email}")
+    except Exception as exc:
+        print(f"[AUTH] Could not fetch Gmail profile: {exc}")
+
+    return {"connected": True, "email": email}
 
 
 @router.get("/logout")
