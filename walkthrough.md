@@ -75,10 +75,10 @@ Email → sklearn (instant, free) → coarse category
 |--------------|----------------|
 | Spam | spam |
 | Promotions | newsletter |
-| Forum | fyi |
-| Social Media | fyi |
-| Updates | fyi |
-| Verify Code | fyi |
+| Forum | forum |
+| Social Media | social |
+| Updates | updates |
+| Verify Code | code |
 
 > **Note:** urgent, action-required, meeting-request, order-update are NOT in the dataset.
 > These are only assigned by Gemini based on email content analysis.
