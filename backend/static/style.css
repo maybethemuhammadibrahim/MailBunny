@@ -3378,3 +3378,76 @@ body {
     }
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK MODE — override every CSS custom property used by utilities
+   ═══════════════════════════════════════════════════════════════════════════ */
+html.dark {
+  /* ── Surface / Layout tokens ────────────────────────────────────────────── */
+  --color-white: #121517;
+  --color-surface: #121517;
+  --color-surface-dim: #2a2d30;
+  --color-surface-bright: #1e2124;
+  --color-surface-container-lowest: #0d0f11;
+  --color-surface-container-low: #181b1d;
+  --color-surface-container-high: #262a2c;
+  --color-surface-container-highest: #313436;
+  --color-on-surface: #e2e5e7;
+  --color-on-surface-variant: #c4c7c9;
+  --color-inverse-surface: #e2e5e7;
+  --color-inverse-on-surface: #2d3133;
+  --color-surface-variant: #3a3d3f;
+  --color-surface-tint: #a0a3a5;
+
+  /* ── Primary ────────────────────────────────────────────────────────────── */
+  --color-primary: #9ecaff;
+  --color-on-primary: #003258;
+  --color-primary-container: #2a4a6b;
+  --color-primary-fixed: #d1e4ff;
+  --color-primary-fixed-dim: #9ecaff;
+  --color-on-primary-fixed: #d1e4ff;
+
+  /* ── Secondary ──────────────────────────────────────────────────────────── */
+  --color-secondary: #64d3ff;
+  --color-on-secondary: #003546;
+  --color-secondary-container: #004d65;
+  --color-secondary-fixed: #bce9ff;
+  --color-secondary-fixed-dim: #64d3ff;
+  --color-on-secondary-fixed: #bce9ff;
+
+  /* ── Tertiary ───────────────────────────────────────────────────────────── */
+  --color-tertiary: #d0bcff;
+  --color-tertiary-container: #4f378b;
+  --color-tertiary-fixed: #e9ddff;
+  --color-tertiary-fixed-dim: #d0bcff;
+  --color-on-tertiary-fixed: #e9ddff;
+
+  /* ── Error ──────────────────────────────────────────────────────────────── */
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  /* ── Outline ────────────────────────────────────────────────────────────── */
+  --color-outline: #8e9193;
+  --color-outline-variant: #444749;
+
+  /* ── Gray scale (used by bg-gray-*, text-gray-*, border-gray-*) ─────── */
+  --color-gray-50: #1a1d1f;
+  --color-gray-100: #222528;
+  --color-gray-200: #2a2d30;
+  --color-gray-300: #3a3d3f;
+  --color-gray-400: #74777a;
+  --color-gray-500: #8e9193;
+  --color-gray-600: #a0a3a5;
+  --color-gray-700: #c4c7c9;
+  --color-gray-900: #e2e5e7;
+
+  /* ── Slate (used by bg-slate-50/70 etc.) ────────────────────────────── */
+  --color-slate-50: #121517;
+}
+
+/* Body background override (the inline <style> sets #f3f6fd) */
+html.dark body {
+  background: #0d0f11 !important;
+}

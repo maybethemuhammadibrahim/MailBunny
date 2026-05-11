@@ -117,9 +117,12 @@
                                 <span class="material-symbols-outlined text-[18px]">notifications</span>
                             </button>
                             <button
-                                class="h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500"
+                                id="dark-mode-toggle"
+                                onclick="toggleDarkMode()"
+                                class="h-8 w-8 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500 hover:text-gray-900 transition-colors"
+                                title="Toggle dark mode"
                             >
-                                <span class="material-symbols-outlined text-[18px]">help</span>
+                                <span id="dark-mode-icon" class="material-symbols-outlined text-[18px]">dark_mode</span>
                             </button>
                             <div
                                 class="h-10 w-10 rounded-full border border-gray-200 bg-white flex items-center justify-center text-gray-500"
@@ -132,6 +135,28 @@
                 </div>
             </div>
         </div>
+        <script>
+            // ── Dark mode toggle ──────────────────────────────────────────────
+            function toggleDarkMode() {
+                var html = document.documentElement;
+                var isDark = html.classList.toggle('dark');
+                html.classList.toggle('light', !isDark);
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                updateDarkModeIcon(isDark);
+            }
+            function updateDarkModeIcon(isDark) {
+                var icon = document.getElementById('dark-mode-icon');
+                if (icon) icon.textContent = isDark ? 'light_mode' : 'dark_mode';
+            }
+            // Apply saved preference on load
+            (function() {
+                var saved = localStorage.getItem('theme');
+                var isDark = saved === 'dark';
+                document.documentElement.classList.toggle('dark', isDark);
+                document.documentElement.classList.toggle('light', !isDark);
+                updateDarkModeIcon(isDark);
+            })();
+        </script>
         <script src="/static/app.js"></script>
         {% block scripts %}{% endblock %}
     </body>
