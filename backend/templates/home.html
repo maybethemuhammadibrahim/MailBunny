@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Home - MailMind{% endblock %}
+{% block title %}Home — MailMind{% endblock %}
 {% block page_styles %}
 <link href="/static/styles/pagestyles.css" rel="stylesheet" />
 {% endblock %}
@@ -10,49 +10,51 @@
         <p class="meta-text">Welcome back</p>
         <h2 id="home-user-name" class="page-title">MailMind User</h2>
     </div>
-    <a href="/crafter" class="btn btn-primary btn-rounded">
-        <span class="material-symbols-outlined" style="font-size:18px">edit</span>
+    <a href="/crafter" class="btn btn-primary">
+        <span class="material-symbols-outlined" style="font-size:16px">edit</span>
         New Email
     </a>
 </div>
 <div class="grid grid-xl-12">
-    <!-- Row 1: [B][C] -->
-    <section class="card col-span-6-xl">
+    <!-- Row 1: Tasks + Meetings -->
+    <section class="card col-span-6-xl" data-animate="1">
         <div class="card-header">
             <h3 class="card-title">My Tasks</h3>
-            <div class="card-actions"><button class="icon-btn small" title="Add"><span class="material-symbols-outlined"
-                        style="font-size:16px">add</span></button></div>
+            <div class="card-actions">
+                <button class="icon-btn small" title="Add task">
+                    <span class="material-symbols-outlined" style="font-size:16px">add</span>
+                </button>
+            </div>
         </div>
-        <div id="tasks-loading" class="loading-placeholder">Loading tasks...</div>
+        <div id="tasks-loading" class="loading-placeholder">Loading tasks…</div>
         <div id="tasks-list" class="hidden list-scroll"></div>
         <div id="tasks-empty" class="hidden loading-placeholder">No tasks yet</div>
     </section>
-    <section class="card col-span-6-xl">
+    <section class="card col-span-6-xl" data-animate="2">
         <div class="card-header">
             <h3 class="card-title">Meeting Overview</h3>
             <div class="badge-live">Live</div>
         </div>
-        <div id="meetings-loading" class="loading-placeholder">Loading meetings...</div>
+        <div id="meetings-loading" class="loading-placeholder">Loading meetings…</div>
         <div id="meetings-list" class="hidden list-scroll"></div>
         <div id="meetings-empty" class="hidden loading-placeholder">No upcoming meetings</div>
     </section>
 
-    <!-- Row 2: [E][A] -->
-    <section class="card col-span-8-xl">
+    <!-- Row 2: Analytics + Stats -->
+    <section class="card col-span-8-xl" data-animate="3">
         <h3 class="card-title" style="margin-bottom:16px">Emails Overview</h3>
-        <div id="analytics-loading" class="loading-placeholder">Loading analytics...</div>
+        <div id="analytics-loading" class="loading-placeholder">Loading analytics…</div>
         <div id="analytics-empty" class="hidden loading-placeholder">No analytics data yet</div>
         <div id="analytics-data" class="hidden analytics-grid">
             <div style="display:flex;align-items:center;justify-content:center">
                 <svg id="analytics-pie" viewBox="0 0 120 120"
-                    style="height:224px;width:224px;transform:rotate(-90deg)"></svg>
+                    style="height:200px;width:200px;transform:rotate(-90deg)"></svg>
             </div>
-            <div id="analytics-legend" class="flex flex-direction-column"
-                style="display:flex;flex-direction:column;gap:8px"></div>
+            <div id="analytics-legend" style="display:flex;flex-direction:column;gap:6px"></div>
         </div>
     </section>
-    <section class="card col-span-4-xl">
-        <h3 class="card-title" style="margin-bottom:16px">A - Email Summary</h3>
+    <section class="card col-span-4-xl" data-animate="4">
+        <h3 class="card-title" style="margin-bottom:16px">Email Summary</h3>
         <div class="stack">
             <div class="stat-block">
                 <p class="stat-label">Emails Processed</p>
@@ -68,102 +70,184 @@
             </div>
         </div>
     </section>
-
-    <!--
-    <section class="xl:col-span-3 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h3 class="mb-4 text-base font-semibold text-gray-900">Open Tickets</h3>
-        <div class="space-y-3">
-            <div class="animate-pulse rounded-2xl border border-gray-100 p-3"><div class="mb-2 h-3 w-2/3 rounded bg-gray-200"></div><div class="h-2 w-full rounded bg-gray-100"></div></div>
-            <div class="animate-pulse rounded-2xl border border-gray-100 p-3"><div class="mb-2 h-3 w-1/2 rounded bg-gray-200"></div><div class="h-2 w-5/6 rounded bg-gray-100"></div></div>
-        </div>
-    </section>
-    -->
 </div>
-{% endblock %} {% block scripts %}
+{% endblock %}
+
+{% block scripts %}
 <script>
+    /* ── Category colors (hex for SVG, no inline color styles) ── */
     const CAT_COLORS = {
-        urgent: { bg: "bg-red-400", hex: "#f87171", label: "Urgent" },
-        "action-required": { bg: "bg-orange-700", hex: "#c2410c", label: "Action Required" },
-        "meeting-request": { bg: "bg-blue-700", hex: "#1d4ed8", label: "Meeting Request" },
-        "order-update": { bg: "bg-purple-700", hex: "#7e22ce", label: "Order Update" },
-        spam: { bg: "bg-red-700", hex: "#b91c1c", label: "Spam" },
-        promotions: { bg: "bg-amber-700", hex: "#b45309", label: "Promotions" },
-        forum: { bg: "bg-teal-700", hex: "#0f766e", label: "Forum" },
-        social_media: { bg: "bg-indigo-700", hex: "#4338ca", label: "Social Media" },
-        updates: { bg: "bg-gray-300", hex: "#d1d5db", label: "Updates" },
-        verify_code: { bg: "bg-cyan-700", hex: "#0e7490", label: "Verify Code" },
+        urgent:           { hex: "#ef4444", label: "Urgent" },
+        "action-required":{ hex: "#f59e0b", label: "Action Required" },
+        "meeting-request":{ hex: "#3b82f6", label: "Meeting Request" },
+        "order-update":   { hex: "#8b5cf6", label: "Order Update" },
+        spam:             { hex: "#dc2626", label: "Spam" },
+        promotions:       { hex: "#d97706", label: "Promotions" },
+        forum:            { hex: "#14b8a6", label: "Forum" },
+        social_media:     { hex: "#6366f1", label: "Social Media" },
+        updates:          { hex: "#94a3b8", label: "Updates" },
+        verify_code:      { hex: "#06b6d4", label: "Verify Code" },
     };
+
     function escHtml(str) {
-        return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        return String(str || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
     }
+
     function priorityClass(priority) {
         if (priority === "high") return "priority-high";
         if (priority === "medium") return "priority-medium";
         return "priority-low";
     }
-    async function markTaskDone(todoId) { try { await fetch(`/api/todos/${todoId}/done`, { method: "PATCH" }); await loadTodos(); } catch (err) { console.error("Mark todo done failed:", err); } }
+
+    /* ── Tasks ── */
+    async function markTaskDone(todoId) {
+        try {
+            await fetch(`/api/todos/${todoId}/done`, { method: "PATCH" });
+            await loadTodos();
+        } catch (err) {
+            console.error("Mark todo done failed:", err);
+        }
+    }
+
     async function loadTodos() {
         const loadingEl = document.getElementById("tasks-loading");
         const listEl = document.getElementById("tasks-list");
         const emptyEl = document.getElementById("tasks-empty");
-        loadingEl.classList.remove("hidden"); listEl.classList.add("hidden"); emptyEl.classList.add("hidden");
+        loadingEl.classList.remove("hidden");
+        listEl.classList.add("hidden");
+        emptyEl.classList.add("hidden");
         try {
             const res = await fetch("/api/todos");
             const todos = await res.json();
-            if (!Array.isArray(todos) || todos.length === 0) { loadingEl.classList.add("hidden"); emptyEl.classList.remove("hidden"); return; }
-            listEl.innerHTML = todos.map((todo) => `<div class="card-item"><div class="task-row"><button onclick="markTaskDone(${todo.id})" class="checkbox-btn" title="Mark done"><span class="material-symbols-outlined" style="font-size:14px">check</span></button><div style="flex:1;min-width:0"><p style="font-size:14px;font-weight:600;color:#0f172a;margin:0">${escHtml(todo.title)}</p><p style="font-size:12px;color:#6b7280;margin-top:4px">${todo.due_date ? `Due: ${escHtml(todo.due_date)}` : "No due date"}</p><p class="truncate" style="font-size:11px;color:#9ca3af;margin-top:6px">Source: ${escHtml(todo.source_email_subject || "Unknown email")}</p></div><span class="${priorityClass(todo.priority)}" style="font-weight:700;font-size:10px;padding:4px 8px;border-radius:9999px">${escHtml((todo.priority || "low").toUpperCase())}</span></div></div>`).join("");
-            loadingEl.classList.add("hidden"); listEl.classList.remove("hidden");
-        } catch (err) { console.error("Todo load failed:", err); loadingEl.classList.add("hidden"); emptyEl.classList.remove("hidden"); }
+            if (!Array.isArray(todos) || todos.length === 0) {
+                loadingEl.classList.add("hidden");
+                emptyEl.classList.remove("hidden");
+                return;
+            }
+            listEl.innerHTML = todos.map((todo) => `
+                <div class="card-item">
+                    <div class="task-row">
+                        <button onclick="markTaskDone(${todo.id})" class="checkbox-btn" title="Mark done">
+                            <span class="material-symbols-outlined" style="font-size:12px">check</span>
+                        </button>
+                        <div style="flex:1;min-width:0">
+                            <p class="task-title">${escHtml(todo.title)}</p>
+                            <p class="task-meta">${todo.due_date ? `Due: ${escHtml(todo.due_date)}` : "No due date"}</p>
+                            <p class="task-source truncate">Source: ${escHtml(todo.source_email_subject || "Unknown email")}</p>
+                        </div>
+                        <span class="${priorityClass(todo.priority)}">${escHtml((todo.priority || "low").toUpperCase())}</span>
+                    </div>
+                </div>
+            `).join("");
+            loadingEl.classList.add("hidden");
+            listEl.classList.remove("hidden");
+        } catch (err) {
+            console.error("Todo load failed:", err);
+            loadingEl.classList.add("hidden");
+            emptyEl.classList.remove("hidden");
+        }
     }
+
+    /* ── Meetings ── */
     async function loadMeetings() {
         const loadingEl = document.getElementById("meetings-loading");
         const listEl = document.getElementById("meetings-list");
         const emptyEl = document.getElementById("meetings-empty");
-        loadingEl.classList.remove("hidden"); listEl.classList.add("hidden"); emptyEl.classList.add("hidden");
+        loadingEl.classList.remove("hidden");
+        listEl.classList.add("hidden");
+        emptyEl.classList.add("hidden");
         try {
             const res = await fetch("/api/meetings");
             const meetings = await res.json();
-            if (!Array.isArray(meetings) || meetings.length === 0) { loadingEl.classList.add("hidden"); emptyEl.classList.remove("hidden"); return; }
-            listEl.innerHTML = meetings.slice(0, 5).map((meeting) => `<div class="card-item"><p style="font-size:14px;font-weight:600;color:#0f172a;margin:0">${escHtml(meeting.title)}</p><p style="font-size:12px;color:#6b7280;margin-top:6px">${escHtml(meeting.date || "Date TBD")}${meeting.time ? ` • ${escHtml(meeting.time)}` : ""}</p><p class="truncate" style="font-size:12px;color:#6b7280;margin-top:6px">${meeting.location_or_link ? escHtml(meeting.location_or_link) : "Location/Link not specified"}</p><p class="truncate" style="font-size:11px;color:#9ca3af;margin-top:6px">Attendees: ${Array.isArray(meeting.attendees) && meeting.attendees.length ? escHtml(meeting.attendees.join(", ")) : "Not specified"}</p><p class="truncate" style="font-size:11px;color:#9ca3af;margin-top:6px">Source: ${escHtml(meeting.source_email_subject || "Unknown email")}</p></div>`).join("");
-            loadingEl.classList.add("hidden"); listEl.classList.remove("hidden");
-        } catch (err) { console.error("Meeting load failed:", err); loadingEl.classList.add("hidden"); emptyEl.classList.remove("hidden"); }
+            if (!Array.isArray(meetings) || meetings.length === 0) {
+                loadingEl.classList.add("hidden");
+                emptyEl.classList.remove("hidden");
+                return;
+            }
+            listEl.innerHTML = meetings.slice(0, 5).map((meeting) => `
+                <div class="card-item">
+                    <p class="meeting-title">${escHtml(meeting.title)}</p>
+                    <p class="meeting-meta">
+                        ${escHtml(meeting.date || "Date TBD")}${meeting.time ? ` · ${escHtml(meeting.time)}` : ""}
+                    </p>
+                    <p class="meeting-detail truncate">
+                        ${meeting.location_or_link ? escHtml(meeting.location_or_link) : "Location not specified"}
+                    </p>
+                    <p class="meeting-detail truncate">
+                        Attendees: ${Array.isArray(meeting.attendees) && meeting.attendees.length
+                            ? escHtml(meeting.attendees.join(", "))
+                            : "Not specified"}
+                    </p>
+                    <p class="meeting-detail truncate">
+                        Source: ${escHtml(meeting.source_email_subject || "Unknown email")}
+                    </p>
+                </div>
+            `).join("");
+            loadingEl.classList.add("hidden");
+            listEl.classList.remove("hidden");
+        } catch (err) {
+            console.error("Meeting load failed:", err);
+            loadingEl.classList.add("hidden");
+            emptyEl.classList.remove("hidden");
+        }
     }
+
+    /* ── Analytics ── */
     async function loadAnalytics() {
         try {
             const res = await fetch("/api/analytics/summary");
             const data = await res.json();
+
             document.getElementById("stat-total").textContent = data.total_processed || 0;
             document.getElementById("stat-spam").textContent = data.spam_blocked || 0;
             document.getElementById("stat-reply").textContent = data.requires_reply_count || 0;
+
             if (!data.total_processed || data.total_processed === 0) {
                 document.getElementById("analytics-loading").classList.add("hidden");
                 document.getElementById("analytics-empty").classList.remove("hidden");
                 return;
             }
+
             const categories = data.categories || {};
             const total = Math.max(
-                Object.values(categories).reduce((sum, value) => sum + Number(value || 0), 0),
+                Object.values(categories).reduce((sum, v) => sum + Number(v || 0), 0),
                 1
             );
-            const sortedCategories = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+            const sorted = Object.entries(categories).sort((a, b) => b[1] - a[1]);
+
             const pieEl = document.getElementById("analytics-pie");
             const legendEl = document.getElementById("analytics-legend");
             const radius = 44;
             const circumference = 2 * Math.PI * radius;
             let offset = 0;
-            pieEl.innerHTML = `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="#f3f4f6" stroke-width="20"></circle>`;
-            sortedCategories.forEach(([cat, count]) => {
+
+            pieEl.innerHTML = `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="var(--border)" stroke-width="18"></circle>`;
+            sorted.forEach(([cat, count]) => {
                 const cfg = CAT_COLORS[cat] || CAT_COLORS["updates"];
                 const pct = count / total;
                 const segment = pct * circumference;
-                pieEl.innerHTML += `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="${cfg.hex}" stroke-width="20" stroke-linecap="butt" stroke-dasharray="${segment} ${circumference - segment}" stroke-dashoffset="${-offset}"></circle>`;
+                pieEl.innerHTML += `<circle cx="60" cy="60" r="${radius}" fill="none" stroke="${cfg.hex}" stroke-width="18" stroke-linecap="butt" stroke-dasharray="${segment} ${circumference - segment}" stroke-dashoffset="${-offset}"></circle>`;
                 offset += segment;
             });
-            legendEl.innerHTML = sortedCategories.map(([cat, count]) => {
+
+            legendEl.innerHTML = sorted.map(([cat, count]) => {
                 const cfg = CAT_COLORS[cat] || CAT_COLORS["updates"];
                 const pct = Math.round((count / total) * 100);
-                return `<div class="legend-item"><div class="legend-left"><span style="height:10px;width:10px;border-radius:9999px;display:inline-block;background:${cfg.hex}"></span><span class="legend-label">${cfg.label}</span></div><span class="legend-count">${count} (${pct}%)</span></div>`;
+                return `
+                    <div class="legend-item">
+                        <div class="legend-left">
+                            <span class="legend-dot" style="background:${cfg.hex}"></span>
+                            <span class="legend-label">${cfg.label}</span>
+                        </div>
+                        <span class="legend-count">${count} (${pct}%)</span>
+                    </div>
+                `;
             }).join("");
+
             document.getElementById("analytics-loading").classList.add("hidden");
             document.getElementById("analytics-data").classList.remove("hidden");
         } catch (err) {
@@ -172,26 +256,26 @@
             document.getElementById("analytics-empty").classList.remove("hidden");
         }
     }
+
+    /* ── User name ── */
     async function loadHomeUserName() {
         try {
             const res = await fetch("/api/auth/status");
             const data = await res.json();
             const nameEl = document.getElementById("home-user-name");
-            const headerNameEl = document.getElementById("header-user-name");
             if (!nameEl) return;
             if (data.connected && data.email) {
                 const baseName = data.email.split("@")[0] || "MailMind User";
-                const finalName = baseName.charAt(0).toUpperCase() + baseName.slice(1);
-                nameEl.textContent = finalName;
-                if (headerNameEl) headerNameEl.textContent = finalName;
+                nameEl.textContent = baseName.charAt(0).toUpperCase() + baseName.slice(1);
             } else {
                 nameEl.textContent = "MailMind User";
-                if (headerNameEl) headerNameEl.textContent = "MailMind User";
             }
         } catch (err) {
             console.error("User name load failed:", err);
         }
     }
+
+    /* ── Init ── */
     loadAnalytics();
     loadTodos();
     loadMeetings();
