@@ -3,18 +3,21 @@
 MailMind is a FastAPI and Jinja2 email intelligence platform. It connects to Gmail via OAuth2 and uses Google Gemini alongside a local scikit-learn model to automatically classify, summarize, extract actionable items, and draft replies for incoming emails. All data is stored locally in SQLite.
 
 ## Features
+1. **Home:** Live analytics dashboard tracking category breakdowns, spam counts, sender analytics, and hourly email volume.
+   
+   ![Home Dashboard](screenshots/1.png)
 
-* **OAuth2 Gmail Integration:** Secure authentication to read and manage emails.
-* **Unread Email Fetching:** Retrieves unread emails from the last 24 hours.
-* **Hybrid AI Classification:** Uses a local TF-IDF + Logistic Regression model for rapid triage (~1ms) and Google Gemini (gemini-2.5-flash-lite) for fine-grained categorization (urgent, action-required, meeting-request, order-update, newsletter, spam, fyi).
-* **Automated Summarization:** Generates a one-line headline, key facts, and action items for each email.
-* **Actionable Item Extraction:** Parses and stores to-dos, meeting details, and order tracking data into structured SQLite tables.
-* **Context-Aware Reply Drafting:** Uses gemini-2.5-flash to draft responses based on email context and prior summaries.
-* **Draft Synchronization:** Saves AI-generated drafts directly back to Gmail without sending.
-* **Quality Review:** Automatically reviews drafted replies for high-priority or urgent emails.
-* **Local Caching:** Stores processed emails and extraction results in SQLite to prevent duplicate API calls and ensure <100ms load times on subsequent views.
-* **Analytics Dashboard:** Provides live tracking of category breakdowns, spam counts, sender analytics, and hourly email volume.
-* **Rate Limit Management:** Enforces a 4.5-second global throttle and automated backoff retries to operate strictly within Gemini's 15 RPM free-tier limits.
+3. **Email page:** 3-pane inbox with folder navigation displaying unread emails, AI summaries, classification tags, and extracted action items (to-dos, meetings, orders).
+   
+   ![Email Page Inbox](screenshots/2.png)
+
+4. **Crafter page:** AI draft panel for context-aware reply generation, automated quality review for high-priority emails, and synchronization to Gmail drafts.
+   
+   ![Crafter Page AI Drafts](screenshots/3.png)
+
+5. **Settings page:** Options to set AI reply tone, connect Gmail via OAuth2, manage API keys, and handle system configurations.
+   
+   ![Settings Page](screenshots/4.png)
 
 ## First-Time Local Setup
 
